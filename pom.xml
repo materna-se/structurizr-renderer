@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.github.stephanpirnbaum</groupId>
+    <artifactId>structurizr-renderer</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+
+    <properties>
+        <maven.compiler.source>17</maven.compiler.source>
+        <maven.compiler.target>17</maven.compiler.target>
+        <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <version.lombok>1.18.42</version.lombok>
+        <version.plantuml>1.2025.9</version.plantuml>
+        <version.playwright>1.57.0</version.playwright>
+        <version.slf4j>2.0.17</version.slf4j>
+        <version.structurizr>5.0.3</version.structurizr>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>com.structurizr</groupId>
+            <artifactId>structurizr-dsl</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.structurizr</groupId>
+            <artifactId>structurizr-export</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.structurizr</groupId>
+            <artifactId>structurizr-autolayout</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>net.sourceforge.plantuml</groupId>
+            <artifactId>plantuml</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+        </dependency>
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <!-- Structurizr DSL -->
+            <dependency>
+                <groupId>com.structurizr</groupId>
+                <artifactId>structurizr-dsl</artifactId>
+                <version>${version.structurizr}</version>
+            </dependency>
+            <!-- Structurizr Export -->
+            <dependency>
+                <groupId>com.structurizr</groupId>
+                <artifactId>structurizr-export</artifactId>
+                <version>${version.structurizr}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.structurizr</groupId>
+                <artifactId>structurizr-autolayout</artifactId>
+                <version>${version.structurizr}</version>
+            </dependency>
+
+            <!-- PlantUML -->
+            <dependency>
+                <groupId>net.sourceforge.plantuml</groupId>
+                <artifactId>plantuml</artifactId>
+                <version>${version.plantuml}</version>
+            </dependency>
+
+            <!-- Utility -->
+            <dependency>
+                <groupId>org.projectlombok</groupId>
+                <artifactId>lombok</artifactId>
+                <version>${version.lombok}</version>
+                <scope>provided</scope>
+            </dependency>
+            <dependency>
+                <groupId>org.slf4j</groupId>
+                <artifactId>slf4j-api</artifactId>
+                <version>${version.slf4j}</version>
+            </dependency>
+
+            <!-- Playwright -->
+            <dependency>
+                <groupId>com.microsoft.playwright</groupId>
+                <artifactId>playwright</artifactId>
+                <version>${version.playwright}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <configuration>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${version.lombok}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
+        </plugins>
+    </build>
+
+</project>
