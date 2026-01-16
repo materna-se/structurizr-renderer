@@ -33,7 +33,7 @@ public abstract class AbstractBuildInDiagramExporter extends AbstractDiagramExpo
     private final String fileExtension;
 
     @Override
-    public final Map<String, Path> export(Workspace workspace, Optional<File> workspaceJson, File outputDir) throws StructurizrRenderingException {
+    public final Map<String, Path> export(Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
         DiagramExporter exporter = getExporter();
         Collection<Diagram> diagrams = exporter.export(workspace);
         Map<String, Path> generatedFiles = new HashMap<>();
@@ -44,21 +44,23 @@ public abstract class AbstractBuildInDiagramExporter extends AbstractDiagramExpo
         }
 
         for (Diagram diagram : diagrams) {
-            String svgFileName = diagram.getKey() + ".svg";
-            String sourceFileName = diagram.getKey() + this.fileExtension;
+            if (viewKey == null || viewKey.isBlank() || diagram.getKey().equals(viewKey)) {
+                String svgFileName = diagram.getKey() + ".svg";
+                String sourceFileName = diagram.getKey() + this.fileExtension;
 
-            log.info("Rendering diagram {}", svgFileName);
+                log.info("Rendering diagram {}", svgFileName);
 
-            Path sourcePath = outputDir.toPath().resolve(sourceFileName);
-            try (OutputStream os = Files.newOutputStream(sourcePath)) {
-                try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
-                    outputStreamWriter.write(diagram.getDefinition());
+                Path sourcePath = outputDir.toPath().resolve(sourceFileName);
+                try (OutputStream os = Files.newOutputStream(sourcePath)) {
+                    try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
+                        outputStreamWriter.write(diagram.getDefinition());
+                    }
+                } catch (IOException e) {
+                    throw new StructurizrRenderingException("Failed to write file during rendering of diagram", e);
                 }
-            } catch (IOException e) {
-                throw new StructurizrRenderingException("Failed to write file during rendering of diagram", e);
-            }
 
-            generatedFiles.put(diagram.getKey(), render(diagram, svgFileName, outputDir));
+                generatedFiles.put(diagram.getKey(), render(diagram, svgFileName, outputDir));
+            }
         }
 
         log.info("Export completed. SVG files in: {}", outputDir.getAbsolutePath());

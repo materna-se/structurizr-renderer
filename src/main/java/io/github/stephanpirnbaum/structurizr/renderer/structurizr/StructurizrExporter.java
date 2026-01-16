@@ -37,7 +37,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
     private final boolean installBrowser;
 
     @Override
-    public Map<String, Path> export(Workspace workspace, Optional<File> workspaceJson, File outputDir) throws StructurizrRenderingException {
+    public Map<String, Path> export(Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
         String wsContent;
         try {
             if (installBrowser) {
@@ -62,7 +62,9 @@ public class StructurizrExporter extends AbstractDiagramExporter {
             String url = "file://" + html.toString().replace('\\', '/');
             log.debug("Opening: " + url);
 
-            try (Playwright pw = Playwright.create()) {
+            Map<String, String> config = new HashMap<>();
+            config.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
+            try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(config))) {
                 BrowserType.LaunchOptions opts = new BrowserType.LaunchOptions().setHeadless(true);
                 try (Browser b = pw.chromium().launch(opts)) {
                     Page page = loadPage(b, wsContent, url);
@@ -71,9 +73,15 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                     Map<String, Path> result = new HashMap<>();
                     if (views == null || views.isEmpty()) {
                         log.warn("No views defined in workspace-file. Nothing generated.");
+                    } else if (viewKey != null && !viewKey.isBlank()) {
+                        if (views.containsKey(viewKey)) {
+                          result.putAll(exportView(page, viewKey, outputDir));
+                        } else {
+                          log.warn("No view with key {} in provided workspace-file. Nothing generated.", viewKey);
+                        }
                     } else {
                         for (Map.Entry<String, String> entry : views.entrySet()) {
-                            result.putAll(exportView(page, entry.getKey(), entry.getValue(), outputDir));
+                            result.putAll(exportView(page, entry.getKey(), outputDir));
                         }
                     }
                     return result;
@@ -105,7 +113,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         return page;
     }
 
-    private Map<String, Path> exportView(Page page, String key, String title, File outputDir) throws IOException {
+    private Map<String, Path> exportView(Page page, String key, File outputDir) throws IOException {
         final String fileName = key.replaceAll("[^a-zA-Z0-9._-]", "_");
 
         page.evaluate("(k) => changeView(k)", key);
