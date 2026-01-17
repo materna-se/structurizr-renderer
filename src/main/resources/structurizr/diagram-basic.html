@@ -7,6 +7,8 @@
     <script src="js/backbone-1.4.1.js"></script>
     <script type="text/javascript" src="js/joint-3.6.5.js"></script>
 
+    <script type="text/javascript" src="js/dagre-0.7.3.min.js"></script>
+    <script type="text/javascript" src="js/graphlib-2.1.3.min.js"></script>
     <script type="text/javascript" src="js/structurizr.js"></script>
     <script type="text/javascript" src="js/structurizr-util.js"></script>
     <script type="text/javascript" src="js/structurizr-ui.js"></script>
@@ -29,6 +31,7 @@
 
 <script>
     var diagram;
+    var views;
 
     $.ajax({
         url: 'https://raw.githubusercontent.com/structurizr/ui/main/examples/big-bank-plc.json',
@@ -43,25 +46,49 @@
     });
 
     function resolveViews() {
-        const views = new Map();
+        const viewMap = new Map();
+        views = new Map();
         const w = window.structurizr && window.structurizr.workspace;
-        if (!w || !w.views) return views;
-        const v = w.views;
+        if (!w || !w.views) return viewMap;
         const buckets = [
             'systemLandscapeViews', 'systemContextViews', 'containerViews', 'componentViews',
             'dynamicViews', 'deploymentViews', 'filteredViews', 'customViews'
         ];
         for (const name of buckets) {
-            const list = v[name] || [];
+            const list = w.views[name] || [];
             for (const x of list) {
-                views.set( x.key, x.title || x.name || x.key );
+                views.set(x.key, x)
+                viewMap.set( x.key, x.title || x.name || x.key );
             }
         }
-        return Object.fromEntries(views);
+        return Object.fromEntries(viewMap);
     }
 
     function changeView(k) {
-        diagram.changeView(k);
+        console.log("Changing view: " + k)
+        console.log(Array.from(views.entries()))
+
+        const actualView = views.get(k)
+        console.log("Actual views: ")
+        console.log(actualView)
+        if (actualView && actualView.automaticLayout) {
+            console.log("Applying automatic layout")
+            diagram.changeView(k, function () {
+                    diagram.runDagre(
+                        actualView.automaticLayout.rankDirection,
+                        actualView.automaticLayout.rankSeparation,
+                        actualView.automaticLayout.nodeSeparation,
+                        actualView.automaticLayout.edgeSeparation,
+                        actualView.automaticLayout.vertices,
+                        true
+                    );
+
+                    diagram.autoPageSize();
+                }
+            )
+        } else {
+            diagram.changeView(k);
+        }
     }
 
     function exportSvg() {

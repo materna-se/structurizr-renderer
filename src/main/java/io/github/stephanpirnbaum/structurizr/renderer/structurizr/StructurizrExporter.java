@@ -48,10 +48,6 @@ public class StructurizrExporter extends AbstractDiagramExporter {
             Path html = Paths.get(resource.toString(), "diagram-basic.html").toAbsolutePath();
 
             if (workspaceJson.isEmpty()) {
-                log.info("No Workspace layout file provided. Applying auto-layout via GraphViz");
-                // Auto layout creates DOT files and SVGs, as they're not requested by the user, they are stored in the workdir
-                GraphvizAutomaticLayout graphviz = new GraphvizAutomaticLayout(Paths.get(outputDir.getPath(), "workdir").toFile());
-                graphviz.apply(workspace);
                 wsContent = WorkspaceUtils.toJson(workspace, true);
             } else {
                 log.info("Workspace layout file provided. Using this instead of the Workspace DSL");
