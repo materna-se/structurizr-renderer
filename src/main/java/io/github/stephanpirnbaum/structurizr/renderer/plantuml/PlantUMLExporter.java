@@ -48,7 +48,7 @@ public class PlantUMLExporter extends AbstractBuildInDiagramExporter {
     }
 
     @Override
-    protected String getHashingString() {
+    protected String getRendererString() {
         return "C4-PlantUML(" + plantumlLayoutEngine.getRepresentation() + ")";
     }
 }

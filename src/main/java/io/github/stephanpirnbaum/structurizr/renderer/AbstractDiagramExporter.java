@@ -6,18 +6,15 @@ import com.structurizr.dsl.StructurizrDslParserException;
 import com.structurizr.view.ThemeUtils;
 import com.structurizr.view.View;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
+import java.util.*;
 import java.util.stream.Collectors;
-
-import static io.github.stephanpirnbaum.structurizr.renderer.HashingUtil.normalize;
 
 /**
  * Base interface for different export strategies.
@@ -27,14 +24,98 @@ import static io.github.stephanpirnbaum.structurizr.renderer.HashingUtil.normali
 @Slf4j
 public abstract class AbstractDiagramExporter {
 
+    /**
+     * Mapping from view key to an entry of hash and rendered diagram
+     */
+    protected final Map<String, AbstractMap.SimpleEntry<String, String>> cache = new HashMap<>();
+
     public final Map<String, Path> export(Path workspacePath, Path workspaceJsonPath, File outputDir, String viewKey) throws StructurizrRenderingException {
-        log.info("Parsing Structurizr DSL: {}", workspacePath);
+        String hash;
+        Path outputFile;
+        Path outputHashFile;
+        AbstractMap.SimpleEntry<String, Path> cachedEntry;
+        if (StringUtils.isNotEmpty(viewKey)) {
+            hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, viewKey, getRendererString());
+            outputFile = constructOutputFilePath(outputDir, viewKey);
+            outputHashFile = constructOutputHashFilePath(workspacePath, hash);
+
+            /*
+             * Always parsing the workspace is expensive especially when being run from the IntelliJ AsciiDoctor Plugin
+             * Therefore, if a specific view key is given, check the in-memory cache first
+             */
+            cachedEntry = getFromCache(outputFile, outputHashFile, viewKey, hash);
+            if (cachedEntry != null) {
+                return Map.ofEntries(cachedEntry);
+            }
+        }
+
+        Map<String, Path> result = new HashMap<>();
 
         try {
             Files.createDirectories(outputDir.toPath());
         } catch (IOException e) {
             throw new StructurizrRenderingException("Failed to create output directory", e);
         }
+
+        Workspace workspace = parseWorkspace(workspacePath);
+
+        Set<String> viewKeys = viewKey != null ?
+                Set.of(viewKey) :
+                workspace.getViews().getViews().stream().map(View::getKey).collect(Collectors.toSet());
+
+        for (String key : viewKeys) {
+            outputFile = constructOutputFilePath(outputDir, key);
+            hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, key, getRendererString());
+            outputHashFile = constructOutputHashFilePath(outputFile, hash);
+
+            cachedEntry = getFromCache(outputFile, outputHashFile, key, hash);
+            if (cachedEntry != null) {
+                result.put(cachedEntry.getKey(), cachedEntry.getValue());
+            } else {
+                result.put(key, export(workspacePath, workspace, workspaceJsonPath, outputDir, key));
+                try {
+                    outputHashFile.toFile().createNewFile();
+                    // todo old hash files must be deleted
+                } catch (IOException e) {
+                    throw new StructurizrRenderingException("Unable to create has file", e);
+                }
+            }
+
+        }
+        log.info("Export completed. SVG files in: {}", outputDir.getAbsolutePath());
+        return result;
+    }
+
+    protected void writeFile(String svg, Path outputFile, Path outputHashFile) throws IOException {
+        Files.writeString(outputFile, svg, StandardCharsets.UTF_8);
+        outputHashFile.toFile().createNewFile();
+    }
+
+    private AbstractMap.SimpleEntry<String, Path> getFromCache(Path outputFile, Path outputHashFile, String viewKey, String hash) throws StructurizrRenderingException {
+        if (StringUtils.isNotEmpty(viewKey)) {
+            if (this.cache.containsKey(viewKey)) {
+                AbstractMap.SimpleEntry<String, String> renderedView = this.cache.get(viewKey);
+                if (renderedView.getKey().equals(hash)) {
+                    // we need to write the value as a file
+                    try {
+                        writeFile(renderedView.getValue(), outputFile, outputHashFile);
+                        log.info("In-memory cache hit for view {}", viewKey);
+                        return new AbstractMap.SimpleEntry<>(viewKey, outputFile);
+                    } catch (IOException e) {
+                        throw new StructurizrRenderingException("Unable to write cached diagram for view: " + viewKey, e);
+                    }
+                }
+            } else if (outputFile.toFile().exists() && outputHashFile.toFile().exists()) {
+                // current rendered version is up-to-date
+                log.info("Cache hit for view {}. Already rendered.", viewKey);
+                return new AbstractMap.SimpleEntry<>(outputFile.getFileName().toString(), outputFile);
+            }
+        }
+        return null;
+    }
+
+    private Workspace parseWorkspace(Path workspacePath) throws StructurizrRenderingException {
+        log.info("Parsing Structurizr DSL: {}", workspacePath);
 
         Workspace workspace;
         try {
@@ -48,43 +129,10 @@ public abstract class AbstractDiagramExporter {
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
-
-        Optional<File> workspaceJsonFile;
-        if (workspaceJsonPath != null) {
-            workspaceJsonFile = Optional.of(workspaceJsonPath.toFile());
-        } else {
-            workspaceJsonFile = Optional.empty();
-        }
-
-        Set<String> viewKeys = viewKey != null ?
-                Set.of(viewKey) :
-                workspace.getViews().getViews().stream().map(View::getKey).collect(Collectors.toSet());
-
-        Map<String, Path> result = new HashMap<>();
-        for (String key : viewKeys) {
-            Path outputFilePath = constructOutputFilePath(outputDir, key);
-            Path outputHashFilePath = constructOutputHashFilePath(workspacePath, workspaceJsonPath, outputFilePath, key);
-            if (outputFilePath.toFile().exists() && outputHashFilePath.toFile().exists()) {
-                // current rendered version is up-to-date
-                log.info("Cache hit for view {}. Already rendered.", key);
-                result.put(outputFilePath.getFileName().toString(), outputFilePath);
-            } else {
-                result.put(key, export(workspacePath, workspace, workspaceJsonFile, outputDir, key));
-                try {
-                    outputHashFilePath.toFile().createNewFile();
-                    // todo old hash files must be deleted
-                } catch (IOException e) {
-                    throw new StructurizrRenderingException("Unable to create has file", e);
-                }
-            }
-
-        }
-        log.info("Export completed. SVG files in: {}", outputDir.getAbsolutePath());
-        return result;
+        return workspace;
     }
 
-    protected Path constructOutputHashFilePath(Path workspacePath, Path workspaceJsonPath, Path outputFilePath, String key) {
-        String hash = buildHash(workspacePath, workspaceJsonPath, key);
+    protected Path constructOutputHashFilePath(Path outputFilePath, String hash) {
 
         return outputFilePath.resolveSibling(outputFilePath.getFileName().toString() + "." + hash);
     }
@@ -94,7 +142,7 @@ public abstract class AbstractDiagramExporter {
      *
      * @param workspacePath The path of the workspace file.
      * @param workspace The workspace to export.
-     * @param workspaceJson The workspace including layout information.
+     * @param workspaceJsonPath The workspace including layout information.
      * @param outputDir The output directory.
      * @param viewKey The key of the view to render or null, if all views should be rendered.
      *
@@ -102,39 +150,14 @@ public abstract class AbstractDiagramExporter {
      *
      * @throws StructurizrRenderingException In case the workspace could not be rendered.
      */
-    protected abstract Path export(Path workspacePath, Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException;
+    protected abstract Path export(Path workspacePath, Workspace workspace, Path workspaceJsonPath, File outputDir, String viewKey) throws StructurizrRenderingException;
 
-    protected abstract String getHashingString();
+    protected abstract String getRendererString();
 
     protected final Path constructOutputFilePath(File outputDir, String viewKey) {
         final String fileName = viewKey.replaceAll("[^a-zA-Z0-9._-]", "_");
 
         return outputDir.toPath().resolve(fileName + ".svg");
-    }
-
-
-    private String buildHash(Path workspacePath, Path workspaceJsonPath, String viewKey) {
-        return HashingUtil.sha256HexConcat(md -> {
-            // Renderer + Version
-            md.update(normalize("renderer=" + getHashingString()));
-
-            // View
-            md.update(normalize("viewKey=" + viewKey));
-
-            // Workspace mtime
-            long wsMtime = 0;
-            try { wsMtime = Files.getLastModifiedTime(workspacePath).toMillis(); } catch (Exception ignore) {}
-            md.update(normalize("wsPath=" + workspacePath.toAbsolutePath()));
-            md.update(normalize("wsMtime=" + wsMtime));
-
-            // Layout mtime
-            if (workspaceJsonPath != null) {
-                long layoutMtime = 0;
-                try { layoutMtime = Files.getLastModifiedTime(workspaceJsonPath).toMillis(); } catch (Exception ignore) {}
-                md.update(normalize("wsJsonPath=" + workspaceJsonPath.toAbsolutePath()));
-                md.update(normalize("wsJsonMtime=" + layoutMtime));
-            }
-        });
     }
 
 }

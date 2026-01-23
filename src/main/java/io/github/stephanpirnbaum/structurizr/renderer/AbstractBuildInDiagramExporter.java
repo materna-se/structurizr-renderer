@@ -32,7 +32,7 @@ public abstract class AbstractBuildInDiagramExporter extends AbstractDiagramExpo
     private final String fileExtension;
 
     @Override
-    protected final Path export(Path workspacePath, Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
+    protected final Path export(Path workspacePath, Workspace workspace, Path workspaceJsonPath, File outputDir, String viewKey) throws StructurizrRenderingException {
         DiagramExporter exporter = getExporter();
         Collection<Diagram> diagrams = exporter.export(workspace);
 

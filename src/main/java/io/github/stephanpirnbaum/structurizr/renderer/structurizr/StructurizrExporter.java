@@ -6,6 +6,7 @@ import com.microsoft.playwright.options.WaitForSelectorState;
 import com.structurizr.Workspace;
 import com.structurizr.util.WorkspaceUtils;
 import io.github.stephanpirnbaum.structurizr.renderer.AbstractDiagramExporter;
+import io.github.stephanpirnbaum.structurizr.renderer.HashingUtil;
 import io.github.stephanpirnbaum.structurizr.renderer.StructurizrRenderingException;
 import lombok.extern.slf4j.Slf4j;
 
@@ -14,7 +15,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.util.*;
 import java.util.regex.Matcher;
@@ -42,18 +42,34 @@ public class StructurizrExporter extends AbstractDiagramExporter {
     }
 
     @Override
-    public Path export(Path workspacePath, Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
+    public Path export(Path workspacePath, Workspace workspace, Path workspaceJsonPath, File outputDir, String viewKey) throws StructurizrRenderingException {
         String wsContent;
+        final String hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, viewKey, getRendererString());
+        final Path outputFile = constructOutputFilePath(outputDir, viewKey);
+        final Path outputHashFile = constructOutputHashFilePath(workspacePath, hash);
+
+        if (this.cache.containsKey(viewKey)) {
+            AbstractMap.SimpleEntry<String, String> renderedView = this.cache.get(viewKey);
+            if (renderedView.getKey().equals(hash)) {
+                // we need to write the value as a file
+                try {
+                    writeFile(renderedView.getValue(), outputFile, outputHashFile);
+                    log.info("In-memory cache hit for view {}", viewKey);
+                    return outputFile;
+                } catch (IOException e) {
+                    throw new StructurizrRenderingException("Unable to write cached diagram for view: " + viewKey, e);
+                }
+            }
+        }
         try {
             Path resource = extractHtmlExporterResources(outputDir);
             Path html = Paths.get(resource.toString(), "diagram-basic.html").toAbsolutePath();
 
-            if (workspaceJson.isEmpty()) {
+            if (workspaceJsonPath == null) {
                 wsContent = WorkspaceUtils.toJson(workspace, true);
             } else {
                 log.info("Workspace layout file provided. Using this instead of the Workspace DSL");
-                Path ws = workspaceJson.get().toPath().toAbsolutePath();
-                wsContent = Files.readString(ws);
+                wsContent = Files.readString(workspaceJsonPath);
             }
 
             String url = "file://" + html.toString().replace('\\', '/');
@@ -75,7 +91,8 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                         log.warn("No view with key {} in provided workspace-file. Nothing generated.", viewKey);
                     } else {
                         for (Map.Entry<String, String> entry : views.entrySet()) {
-                            result.putAll(exportView(page, workspacePath, workspaceJson.map(File::toPath).orElse(null), entry.getKey(), outputDir));
+                            exportView(page, outputFile, outputHashFile, hash, entry.getKey());
+                            result.put(entry.getKey(), outputFile);
                         }
                     }
                     return result.get(viewKey);
@@ -87,7 +104,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
     }
 
     @Override
-    protected String getHashingString() {
+    protected String getRendererString() {
         return "Structurizr";
     }
 
@@ -112,7 +129,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         return page;
     }
 
-    private Map<String, Path> exportView(Page page, Path workspacePath, Path workspaceJsonPath, String key, File outputDir) throws IOException {
+    private void exportView(Page page, Path outputFile, Path outputHashFile, String hash, String key) throws IOException {
         page.evaluate("(k) => changeView(k)", key);
 
         // wait for rendered diagram
@@ -122,19 +139,16 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                         .setTimeout(30000));
 
         String svg = (String) page.evaluate("() => exportSvg()");
-        Map<String, Path> result = new HashMap<>();
         if (svg == null) {
             log.warn("SVG not retrieved for view {} – skipping.", key);
         } else {
             svg = normalizeSvgSize(svg);
-            Path file = constructOutputFilePath(outputDir, key);
-            Path fileHash = constructOutputHashFilePath(workspacePath, workspaceJsonPath, file, key);
-            Files.writeString(file, svg, StandardCharsets.UTF_8);
-            fileHash.toFile().createNewFile();
-            result.put(file.getFileName().toString(), file);
-            log.info("Exported: {}", file.toAbsolutePath());
+
+            writeFile(svg, outputFile, outputHashFile);
+
+            this.cache.put(key, new AbstractMap.SimpleEntry<>(hash, svg));
+            log.info("Exported: {}", outputFile.toAbsolutePath());
         }
-        return result;
     }
 
     private Path extractHtmlExporterResources(File outputDir) throws IOException {

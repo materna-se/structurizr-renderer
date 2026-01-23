@@ -57,7 +57,7 @@ public class MermaidExporter extends AbstractBuildInDiagramExporter {
     }
 
     @Override
-    protected String getHashingString() {
+    protected String getRendererString() {
         return "Mermaid";
     }
 }
