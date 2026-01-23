@@ -9,10 +9,6 @@ import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.OutputStream;
-import java.io.OutputStreamWriter;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 /**
@@ -36,25 +32,12 @@ public class MermaidExporter extends AbstractBuildInDiagramExporter {
     }
 
     @Override
-    protected Path render(Diagram diagram, String fileName, File outputDir) throws StructurizrRenderingException {
-        String mermaidSource = diagram.getDefinition();
-
-        Path mermaidPath = outputDir.toPath().resolve(diagram.getKey() + ".mmd");
-        try (OutputStream os = Files.newOutputStream(mermaidPath)) {
-            try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8)){
-                outputStreamWriter.write(mermaidSource);
-            }
-        } catch (IOException e) {
-            throw new StructurizrRenderingException("Failed to write file during rendering of Mermaid diagram", e);
-        }
-
-
+    protected Path render(Diagram diagram, Path outputFilePath) throws StructurizrRenderingException {
         try {
-            Path outputPath = outputDir.toPath().resolve(fileName);
             ProcessBuilder pb = new ProcessBuilder(
                     mmdcPath,
-                    "-i", outputDir.toPath().resolve(diagram.getKey() + ".mmd").toString(),
-                    "-o", outputPath.toString()
+                    "-i", outputFilePath.getParent().resolve(diagram.getKey() + ".mmd").toString(),
+                    "-o", outputFilePath.toString()
             );
 
             pb.directory(new File(".")); // working directory
@@ -63,14 +46,18 @@ public class MermaidExporter extends AbstractBuildInDiagramExporter {
             int exitCode = process.waitFor();
 
             if (exitCode == 0) {
-                log.info("Mermaid diagram rendered successfully: {}", fileName);
+                log.info("Mermaid diagram rendered successfully: {}", outputFilePath.getFileName().toString());
             } else {
                 log.warn("Mermaid rendering failed with exit code {}", exitCode);
             }
-            return outputPath;
+            return outputFilePath;
         } catch (InterruptedException | IOException e) {
             throw new StructurizrRenderingException("Failed to render Mermaid diagram", e);
         }
     }
 
+    @Override
+    protected String getHashingString() {
+        return "Mermaid";
+    }
 }

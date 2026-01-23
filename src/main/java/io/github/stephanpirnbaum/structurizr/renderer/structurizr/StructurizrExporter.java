@@ -4,11 +4,9 @@ import com.microsoft.playwright.*;
 import com.microsoft.playwright.impl.driver.Driver;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.structurizr.Workspace;
-import com.structurizr.autolayout.graphviz.GraphvizAutomaticLayout;
 import com.structurizr.util.WorkspaceUtils;
 import io.github.stephanpirnbaum.structurizr.renderer.AbstractDiagramExporter;
 import io.github.stephanpirnbaum.structurizr.renderer.StructurizrRenderingException;
-import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -30,20 +28,23 @@ import java.util.regex.Pattern;
  *
  * @author Stephan Pirnbaum
  */
-@RequiredArgsConstructor
 @Slf4j
 public class StructurizrExporter extends AbstractDiagramExporter {
 
-    private final boolean installBrowser;
+    public StructurizrExporter(boolean installBrowser) throws StructurizrRenderingException {
+        if (installBrowser) {
+            try {
+                installBrowser(new String[]{"install", "chromium", "--with-deps", "--only-shell"});
+            } catch (IOException | InterruptedException e) {
+                throw new StructurizrRenderingException("Could not install Chromium", e);
+            }
+        }
+    }
 
     @Override
-    public Map<String, Path> export(Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
+    public Path export(Path workspacePath, Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
         String wsContent;
         try {
-            if (installBrowser) {
-                installBrowser(new String[]{"install", "chromium", "--with-deps", "--only-shell"});
-            }
-
             Path resource = extractHtmlExporterResources(outputDir);
             Path html = Paths.get(resource.toString(), "diagram-basic.html").toAbsolutePath();
 
@@ -66,21 +67,18 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                     Page page = loadPage(b, wsContent, url);
 
                     Map<String, String> views = (Map<String, String>) page.evaluate("() => resolveViews()");
+                    // Rendering a diagram this way is expensive as of the browser overhead. Therefore, render all diagrams.
                     Map<String, Path> result = new HashMap<>();
                     if (views == null || views.isEmpty()) {
                         log.warn("No views defined in workspace-file. Nothing generated.");
-                    } else if (viewKey != null && !viewKey.isBlank()) {
-                        if (views.containsKey(viewKey)) {
-                          result.putAll(exportView(page, viewKey, outputDir));
-                        } else {
-                          log.warn("No view with key {} in provided workspace-file. Nothing generated.", viewKey);
-                        }
+                    } else if (!views.containsKey(viewKey)) {
+                        log.warn("No view with key {} in provided workspace-file. Nothing generated.", viewKey);
                     } else {
                         for (Map.Entry<String, String> entry : views.entrySet()) {
-                            result.putAll(exportView(page, entry.getKey(), outputDir));
+                            result.putAll(exportView(page, workspacePath, workspaceJson.map(File::toPath).orElse(null), entry.getKey(), outputDir));
                         }
                     }
-                    return result;
+                    return result.get(viewKey);
                 }
             }
         } catch (Exception e) {
@@ -88,11 +86,16 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         }
     }
 
+    @Override
+    protected String getHashingString() {
+        return "Structurizr";
+    }
+
     private Page loadPage(Browser browser, String wsContent, String url) {
         BrowserContext ctx = browser.newContext(new Browser.NewContextOptions().setViewportSize(1920, 1080));
         Page page = ctx.newPage();
 
-        page.onConsoleMessage(msg -> log.info(String.format("[console.%s] %s%n", msg.type(), msg.text())));
+        page.onConsoleMessage(msg -> log.debug(String.format("[console.%s] %s%n", msg.type(), msg.text())));
 
         page.onPageError(err -> log.warn("[pageerror] " + err));
 
@@ -109,9 +112,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         return page;
     }
 
-    private Map<String, Path> exportView(Page page, String key, File outputDir) throws IOException {
-        final String fileName = key.replaceAll("[^a-zA-Z0-9._-]", "_");
-
+    private Map<String, Path> exportView(Page page, Path workspacePath, Path workspaceJsonPath, String key, File outputDir) throws IOException {
         page.evaluate("(k) => changeView(k)", key);
 
         // wait for rendered diagram
@@ -123,13 +124,15 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         String svg = (String) page.evaluate("() => exportSvg()");
         Map<String, Path> result = new HashMap<>();
         if (svg == null) {
-            log.warn("SVG not retrieved for view " + key + " – skipping.");
+            log.warn("SVG not retrieved for view {} – skipping.", key);
         } else {
             svg = normalizeSvgSize(svg);
-            Path file = outputDir.toPath().resolve(fileName + ".svg");
+            Path file = constructOutputFilePath(outputDir, key);
+            Path fileHash = constructOutputHashFilePath(workspacePath, workspaceJsonPath, file, key);
             Files.writeString(file, svg, StandardCharsets.UTF_8);
-            result.put(fileName, file);
-            log.info("Exported: " + file.toAbsolutePath());
+            fileHash.toFile().createNewFile();
+            result.put(file.getFileName().toString(), file);
+            log.info("Exported: {}", file.toAbsolutePath());
         }
         return result;
     }
@@ -222,5 +225,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
         return svg;
     }
+
+
 
 }

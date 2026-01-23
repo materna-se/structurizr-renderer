@@ -3,6 +3,7 @@ package io.github.stephanpirnbaum.structurizr.renderer;
 import com.structurizr.Workspace;
 import com.structurizr.export.Diagram;
 import com.structurizr.export.DiagramExporter;
+import com.structurizr.view.View;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -15,8 +16,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -33,42 +32,32 @@ public abstract class AbstractBuildInDiagramExporter extends AbstractDiagramExpo
     private final String fileExtension;
 
     @Override
-    public final Map<String, Path> export(Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
+    protected final Path export(Path workspacePath, Workspace workspace, Optional<File> workspaceJson, File outputDir, String viewKey) throws StructurizrRenderingException {
         DiagramExporter exporter = getExporter();
         Collection<Diagram> diagrams = exporter.export(workspace);
-        Map<String, Path> generatedFiles = new HashMap<>();
-        try {
-            Files.createDirectories(outputDir.toPath());
-        } catch (IOException e) {
-            throw new StructurizrRenderingException("Failed to create output directory", e);
-        }
 
-        for (Diagram diagram : diagrams) {
-            if (viewKey == null || viewKey.isBlank() || diagram.getKey().equals(viewKey)) {
-                String svgFileName = diagram.getKey() + ".svg";
-                String sourceFileName = diagram.getKey() + this.fileExtension;
-
-                log.info("Rendering diagram {}", svgFileName);
-
+        View view = workspace.getViews().getViewWithKey(viewKey);
+        if (view != null) {
+            Optional<Diagram> diagram = diagrams.stream().filter(d -> d.getKey().equals(viewKey)).findFirst();
+            if (diagram.isPresent()) {
+                String sourceFileName = viewKey + this.fileExtension;
+                log.info("Rendering diagram for view {}", viewKey);
                 Path sourcePath = outputDir.toPath().resolve(sourceFileName);
                 try (OutputStream os = Files.newOutputStream(sourcePath)) {
                     try (OutputStreamWriter outputStreamWriter = new OutputStreamWriter(os, StandardCharsets.UTF_8)) {
-                        outputStreamWriter.write(diagram.getDefinition());
+                        outputStreamWriter.write(diagram.get().getDefinition());
                     }
                 } catch (IOException e) {
                     throw new StructurizrRenderingException("Failed to write file during rendering of diagram", e);
                 }
-
-                generatedFiles.put(diagram.getKey(), render(diagram, svgFileName, outputDir));
+                return render(diagram.get(), constructOutputFilePath(outputDir, viewKey));
             }
         }
-
-        log.info("Export completed. SVG files in: {}", outputDir.getAbsolutePath());
-        return generatedFiles;
+        throw new StructurizrRenderingException("No view with key " + viewKey);
     }
 
     protected abstract DiagramExporter getExporter();
 
-    protected abstract Path render(Diagram diagram, String fileName, File outputDir) throws StructurizrRenderingException;
+    protected abstract Path render(Diagram diagram, Path outputFilePath) throws StructurizrRenderingException;
 
 }

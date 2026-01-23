@@ -66,11 +66,9 @@
 
     function changeView(k) {
         console.log("Changing view: " + k)
-        console.log(Array.from(views.entries()))
 
         const actualView = views.get(k)
-        console.log("Actual views: ")
-        console.log(actualView)
+        console.log("Actual views: " + JSON.stringify(actualView))
         if (actualView && actualView.automaticLayout) {
             console.log("Applying automatic layout")
             diagram.changeView(k, function () {

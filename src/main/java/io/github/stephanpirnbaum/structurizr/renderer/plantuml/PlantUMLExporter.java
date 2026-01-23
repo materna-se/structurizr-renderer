@@ -9,7 +9,6 @@ import net.sourceforge.plantuml.FileFormat;
 import net.sourceforge.plantuml.FileFormatOption;
 import net.sourceforge.plantuml.SourceStringReader;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
@@ -37,17 +36,19 @@ public class PlantUMLExporter extends AbstractBuildInDiagramExporter {
     }
 
     @Override
-    protected Path render(Diagram diagram, String fileName, File outputDir) throws StructurizrRenderingException {
+    protected Path render(Diagram diagram, Path outputFilePath) throws StructurizrRenderingException {
         String plantUmlSource = diagram.getDefinition();
-        Path svgPath = outputDir.toPath().resolve(fileName);
-
-        try (OutputStream os = Files.newOutputStream(svgPath)) {
+        try (OutputStream os = Files.newOutputStream(outputFilePath)) {
             SourceStringReader reader = new SourceStringReader(plantUmlSource);
             reader.outputImage(os, new FileFormatOption(FileFormat.SVG));
-            return svgPath;
+            return outputFilePath;
         } catch (IOException e) {
             throw new StructurizrRenderingException("Failed to write file during rendering of PlantUML diagram", e);
         }
     }
 
+    @Override
+    protected String getHashingString() {
+        return "C4-PlantUML(" + plantumlLayoutEngine.getRepresentation() + ")";
+    }
 }
