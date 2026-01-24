@@ -44,23 +44,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
     @Override
     public Path export(Path workspacePath, Workspace workspace, Path workspaceJsonPath, File outputDir, String viewKey) throws StructurizrRenderingException {
         String wsContent;
-        final String hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, viewKey, getRendererString());
-        final Path outputFile = constructOutputFilePath(outputDir, viewKey);
-        final Path outputHashFile = constructOutputHashFilePath(workspacePath, hash);
 
-        if (this.cache.containsKey(viewKey)) {
-            AbstractMap.SimpleEntry<String, String> renderedView = this.cache.get(viewKey);
-            if (renderedView.getKey().equals(hash)) {
-                // we need to write the value as a file
-                try {
-                    writeFile(renderedView.getValue(), outputFile, outputHashFile);
-                    log.info("In-memory cache hit for view {}", viewKey);
-                    return outputFile;
-                } catch (IOException e) {
-                    throw new StructurizrRenderingException("Unable to write cached diagram for view: " + viewKey, e);
-                }
-            }
-        }
         try {
             Path resource = extractHtmlExporterResources(outputDir);
             Path html = Paths.get(resource.toString(), "diagram-basic.html").toAbsolutePath();
@@ -83,14 +67,22 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                     Page page = loadPage(b, wsContent, url);
 
                     Map<String, String> views = (Map<String, String>) page.evaluate("() => resolveViews()");
+                    log.info("Rendering views: {}", views.keySet());
                     // Rendering a diagram this way is expensive as of the browser overhead. Therefore, render all diagrams.
                     Map<String, Path> result = new HashMap<>();
                     if (views == null || views.isEmpty()) {
-                        log.warn("No views defined in workspace-file. Nothing generated.");
+                        throw new StructurizrRenderingException("No views defined in workspace-file. Nothing generated.");
                     } else if (!views.containsKey(viewKey)) {
-                        log.warn("No view with key {} in provided workspace-file. Nothing generated.", viewKey);
+                        throw new StructurizrRenderingException("No view with key " + viewKey + " in provided workspace-file. Nothing generated.");
                     } else {
+                        String hash;
+                        Path outputFile;
+                        Path outputHashFile;
                         for (Map.Entry<String, String> entry : views.entrySet()) {
+                            hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, entry.getKey(), getRendererString());
+                            outputFile = constructOutputFilePath(outputDir, entry.getKey());
+                            outputHashFile = constructOutputHashFilePath(outputFile, hash);
+
                             exportView(page, outputFile, outputHashFile, hash, entry.getKey());
                             result.put(entry.getKey(), outputFile);
                         }

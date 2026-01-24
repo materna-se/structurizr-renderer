@@ -37,7 +37,7 @@ public abstract class AbstractDiagramExporter {
         if (StringUtils.isNotEmpty(viewKey)) {
             hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, viewKey, getRendererString());
             outputFile = constructOutputFilePath(outputDir, viewKey);
-            outputHashFile = constructOutputHashFilePath(workspacePath, hash);
+            outputHashFile = constructOutputHashFilePath(outputFile, hash);
 
             /*
              * Always parsing the workspace is expensive especially when being run from the IntelliJ AsciiDoctor Plugin
@@ -73,12 +73,6 @@ public abstract class AbstractDiagramExporter {
                 result.put(cachedEntry.getKey(), cachedEntry.getValue());
             } else {
                 result.put(key, export(workspacePath, workspace, workspaceJsonPath, outputDir, key));
-                try {
-                    outputHashFile.toFile().createNewFile();
-                    // todo old hash files must be deleted
-                } catch (IOException e) {
-                    throw new StructurizrRenderingException("Unable to create has file", e);
-                }
             }
 
         }
@@ -87,8 +81,10 @@ public abstract class AbstractDiagramExporter {
     }
 
     protected void writeFile(String svg, Path outputFile, Path outputHashFile) throws IOException {
-        Files.writeString(outputFile, svg, StandardCharsets.UTF_8);
-        outputHashFile.toFile().createNewFile();
+        if (!outputHashFile.toFile().exists()) {
+            Files.writeString(outputFile, svg, StandardCharsets.UTF_8);
+            outputHashFile.toFile().createNewFile();
+        }
     }
 
     private AbstractMap.SimpleEntry<String, Path> getFromCache(Path outputFile, Path outputHashFile, String viewKey, String hash) throws StructurizrRenderingException {
@@ -121,7 +117,7 @@ public abstract class AbstractDiagramExporter {
         try {
             String workspaceDsl = Files.readString(workspacePath);
             StructurizrDslParser parser = new StructurizrDslParser();
-            parser.parse(workspaceDsl);
+            parser.parse(workspaceDsl, workspacePath.toFile());
             workspace = parser.getWorkspace();
             ThemeUtils.loadThemes(workspace);
         } catch (IOException | StructurizrDslParserException e) {
@@ -155,7 +151,7 @@ public abstract class AbstractDiagramExporter {
     protected abstract String getRendererString();
 
     protected final Path constructOutputFilePath(File outputDir, String viewKey) {
-        final String fileName = viewKey.replaceAll("[^a-zA-Z0-9._-]", "_");
+        final String fileName = (viewKey + "_" + getRendererString()).replaceAll("[^a-zA-Z0-9._-]", "_");
 
         return outputDir.toPath().resolve(fileName + ".svg");
     }
