@@ -13,7 +13,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.AbstractMap;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
@@ -95,7 +98,7 @@ public abstract class AbstractDiagramExporter {
                     // we need to write the value as a file
                     try {
                         writeFile(renderedView.getValue(), outputFile, outputHashFile);
-                        log.info("In-memory cache hit for view {}", viewKey);
+                        log.debug("In-memory cache hit for view {}", viewKey);
                         return new AbstractMap.SimpleEntry<>(viewKey, outputFile);
                     } catch (IOException e) {
                         throw new StructurizrRenderingException("Unable to write cached diagram for view: " + viewKey, e);
@@ -103,8 +106,8 @@ public abstract class AbstractDiagramExporter {
                 }
             } else if (outputFile.toFile().exists() && outputHashFile.toFile().exists()) {
                 // current rendered version is up-to-date
-                log.info("Cache hit for view {}. Already rendered.", viewKey);
-                return new AbstractMap.SimpleEntry<>(outputFile.getFileName().toString(), outputFile);
+                log.debug("Cache hit for view {}. Already rendered.", viewKey);
+                return new AbstractMap.SimpleEntry<>(viewKey, outputFile);
             }
         }
         return null;
@@ -123,7 +126,7 @@ public abstract class AbstractDiagramExporter {
         } catch (IOException | StructurizrDslParserException e) {
             throw new StructurizrRenderingException("Could not read workspace dsl", e);
         } catch (Exception e) {
-            throw new RuntimeException(e);
+            throw new StructurizrRenderingException("Failed to process workspace dsl", e);
         }
         return workspace;
     }
