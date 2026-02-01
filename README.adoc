@@ -1,0 +1,47 @@
+= structurizr-renderer
+
+The `structurizr-renderer` is a Java library and CLI tool to render Structurizr workspaces providing different rendering algorithms, i.e.: 
+
+* C4-PlantUML with support for
+  * GraphViz (default for C4-PlantUML)
+  * ELK
+  * Smetana
+* Mermaid
+* Structurizr (as used by the Structurizr UI) (default)
+
+NOTE:: If GraphViz is used, a GraphViz installation is required and `dot` needs to be on the path.
+
+NOTE:: If Mermaid is used, a Mermaid installation is required and `mmdc` needs to be on the path.
+
+NOTE:: If Structurizr is used, Playwright is used under the hood and will download Chromium. If you are behind a proxy, you need to configure the `HTTPS_PROXY` env variable.
+
+== Usage as a Java library
+
+To run the renderer from Java, you can use the `WorkspaceRenderer#render` convenience method which will set up everything as required by the provided configuration.
+
+== Usage from the command line
+
+You can download the latest release from GitHub. Once downloaded, run it using `java -jar`. This requires at least JDK 17.
+
+Following is the configuration as requested. This output is provided by PicoCLI and also shown when running the CLI without the expected arguments.
+
+[bash]
+----
+Missing required options: '--workspace=<workspaceDslPath>', '--outputDir=<outputDir>', '--viewKey=<viewKey>'
+Usage: render [-e=<plantumlLayoutEngine>] [-j=<workspaceJsonPath>]
+              -o=<outputDir> [-r=<renderer>] -v=<viewKey> -w=<workspaceDslPath>
+Renders the views of a given workspace to SVG files
+  -e, --plantumlLayoutEngine=<plantumlLayoutEngine>
+                            The layout engine to use for the PLANTUML-C4
+                              renderer. Defaults to GraphViz.
+  -j, --workspaceJson=<workspaceJsonPath>
+                            Path to the manual layout JSON file.
+  -o, --outputDir=<outputDir>
+                            Path to write the output to.
+  -r, --renderer=<renderer> The renderer to use. Defaults to STRUCTURIZR.
+  -v, --viewKey=<viewKey>   The key of the view to render.
+  -w, --workspace=<workspaceDslPath>
+                            Path to the workspace DSL file.
+----
+
+
