@@ -47,7 +47,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
         try {
             Path resource = extractHtmlExporterResources(outputDir);
-            Path html = Paths.get(resource.toString(), "diagram-basic.html").toAbsolutePath();
+            Path html = Paths.get(resource.toString(), "diagram-export.html").toAbsolutePath();
 
             if (workspaceJsonPath == null) {
                 wsContent = WorkspaceUtils.toJson(workspace, true);
@@ -66,7 +66,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                 try (Browser b = pw.chromium().launch(opts)) {
                     Page page = loadPage(b, wsContent, url);
 
-                    Map<String, String> views = (Map<String, String>) page.evaluate("() => resolveViews()");
+                    Map<String, String> views = (Map<String, String>) page.evaluate("() => loadWorkspace()");
                     log.info("Rendering views: {}", views.keySet());
                     // Rendering a diagram this way is expensive as of the browser overhead. Therefore, render all diagrams.
                     Map<String, Path> result = new HashMap<>();

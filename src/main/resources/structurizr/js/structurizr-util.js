@@ -91,6 +91,14 @@ structurizr.util.trim = function(s) {
     }
 };
 
+structurizr.util.removeNewlineCharacters = function(s) {
+    if (s) {
+        s = s.replace(/(\r\n|\r|\n)/g, ' ');
+    }
+
+    return s;
+};
+
 structurizr.util.btoa = function(plain) {
     return CryptoJS.enc.Base64.stringify(CryptoJS.enc.Utf8.parse(plain));
 };
@@ -144,6 +152,20 @@ structurizr.util.sortStyles = function(a, b) {
     }
 
     return (a.colorScheme + '/' + a.tag).localeCompare(b.colorScheme + '/' + b.tag);
+};
+
+structurizr.util.getItemFromLocalStorage = function(key, defaultValue) {
+    const value = localStorage.getItem(key);
+
+    if (value === undefined || value === null || value.length === 0) {
+        return defaultValue;
+    }
+
+    return value;
+};
+
+structurizr.util.setItemInLocalStorage = function(key, value) {
+    localStorage.setItem(key, value);
 };
 
 if (!String.prototype.startsWith) {

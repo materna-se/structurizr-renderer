@@ -21,7 +21,7 @@
         <version.plantuml>1.2026.0</version.plantuml>
         <version.playwright>1.57.0</version.playwright>
         <version.slf4j>2.0.17</version.slf4j>
-        <version.structurizr>5.0.3</version.structurizr>
+        <version.structurizr>6.0.0</version.structurizr>
     </properties>
 
     <dependencies>
