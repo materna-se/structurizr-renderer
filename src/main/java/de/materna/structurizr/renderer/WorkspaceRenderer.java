@@ -1,9 +1,9 @@
-package io.github.stephanpirnbaum.structurizr.renderer;
+package de.materna.structurizr.renderer;
 
-import io.github.stephanpirnbaum.structurizr.renderer.mermaid.MermaidExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.plantuml.PlantUMLExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.plantuml.PlantumlLayoutEngine;
-import io.github.stephanpirnbaum.structurizr.renderer.structurizr.StructurizrExporter;
+import de.materna.structurizr.renderer.mermaid.MermaidExporter;
+import de.materna.structurizr.renderer.plantuml.PlantUMLExporter;
+import de.materna.structurizr.renderer.plantuml.PlantumlLayoutEngine;
+import de.materna.structurizr.renderer.structurizr.StructurizrExporter;
 import lombok.extern.slf4j.Slf4j;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;

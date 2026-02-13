@@ -1,9 +1,9 @@
-package io.github.stephanpirnbaum.structurizr.renderer.plantuml;
+package de.materna.structurizr.renderer.plantuml;
 
 import com.structurizr.export.Diagram;
 import com.structurizr.export.DiagramExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.AbstractBuildInDiagramExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.StructurizrRenderingException;
+import de.materna.structurizr.renderer.AbstractBuildInDiagramExporter;
+import de.materna.structurizr.renderer.StructurizrRenderingException;
 import lombok.extern.slf4j.Slf4j;
 import net.sourceforge.plantuml.FileFormat;
 import net.sourceforge.plantuml.FileFormatOption;

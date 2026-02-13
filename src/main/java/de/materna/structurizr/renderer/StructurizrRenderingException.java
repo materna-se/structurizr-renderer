@@ -1,4 +1,4 @@
-package io.github.stephanpirnbaum.structurizr.renderer;
+package de.materna.structurizr.renderer;
 
 /**
  * Exception for issues during the rendering of the Structurizr DSL file.

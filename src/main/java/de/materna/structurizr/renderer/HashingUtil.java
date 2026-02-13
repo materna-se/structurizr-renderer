@@ -1,14 +1,14 @@
-package io.github.stephanpirnbaum.structurizr.renderer;
+package de.materna.structurizr.renderer;
 
 
 import lombok.AccessLevel;
 import lombok.NoArgsConstructor;
 
-import java.io.*;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.*;
-import java.security.*;
-import java.util.*;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.function.Consumer;
 
 @NoArgsConstructor(access = AccessLevel.PRIVATE)

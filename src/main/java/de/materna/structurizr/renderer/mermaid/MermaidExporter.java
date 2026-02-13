@@ -1,10 +1,10 @@
-package io.github.stephanpirnbaum.structurizr.renderer.mermaid;
+package de.materna.structurizr.renderer.mermaid;
 
 import com.structurizr.export.Diagram;
 import com.structurizr.export.DiagramExporter;
 import com.structurizr.export.mermaid.MermaidDiagramExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.AbstractBuildInDiagramExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.StructurizrRenderingException;
+import de.materna.structurizr.renderer.AbstractBuildInDiagramExporter;
+import de.materna.structurizr.renderer.StructurizrRenderingException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;

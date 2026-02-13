@@ -1,4 +1,4 @@
-package io.github.stephanpirnbaum.structurizr.renderer.plantuml;
+package de.materna.structurizr.renderer.plantuml;
 
 import com.structurizr.export.IndentingWriter;
 import com.structurizr.export.plantuml.C4PlantUMLExporter;

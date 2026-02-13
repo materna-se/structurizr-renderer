@@ -1,13 +1,19 @@
-package io.github.stephanpirnbaum.structurizr.renderer.structurizr;
+package de.materna.structurizr.renderer.structurizr;
 
-import com.microsoft.playwright.*;
+import com.microsoft.playwright.Browser;
+import com.microsoft.playwright.BrowserContext;
+import com.microsoft.playwright.BrowserType;
+import com.microsoft.playwright.Locator;
+import com.microsoft.playwright.Page;
+import com.microsoft.playwright.Playwright;
+import com.microsoft.playwright.Route;
 import com.microsoft.playwright.impl.driver.Driver;
 import com.microsoft.playwright.options.WaitForSelectorState;
 import com.structurizr.Workspace;
 import com.structurizr.util.WorkspaceUtils;
-import io.github.stephanpirnbaum.structurizr.renderer.AbstractDiagramExporter;
-import io.github.stephanpirnbaum.structurizr.renderer.HashingUtil;
-import io.github.stephanpirnbaum.structurizr.renderer.StructurizrRenderingException;
+import de.materna.structurizr.renderer.AbstractDiagramExporter;
+import de.materna.structurizr.renderer.HashingUtil;
+import de.materna.structurizr.renderer.StructurizrRenderingException;
 import lombok.extern.slf4j.Slf4j;
 
 import java.io.File;
@@ -15,8 +21,17 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.AbstractMap;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 

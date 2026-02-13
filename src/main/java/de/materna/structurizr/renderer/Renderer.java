@@ -1,4 +1,4 @@
-package io.github.stephanpirnbaum.structurizr.renderer;
+package de.materna.structurizr.renderer;
 
 /**
  * Enum representation of the supported renderers.

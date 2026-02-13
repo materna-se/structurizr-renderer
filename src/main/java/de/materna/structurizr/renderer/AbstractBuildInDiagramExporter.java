@@ -1,4 +1,4 @@
-package io.github.stephanpirnbaum.structurizr.renderer;
+package de.materna.structurizr.renderer;
 
 import com.structurizr.Workspace;
 import com.structurizr.export.Diagram;

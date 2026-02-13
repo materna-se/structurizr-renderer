@@ -1,6 +1,6 @@
-package io.github.stephanpirnbaum.structurizr.renderer;
+package de.materna.structurizr.renderer;
 
-import io.github.stephanpirnbaum.structurizr.renderer.plantuml.PlantumlLayoutEngine;
+import de.materna.structurizr.renderer.plantuml.PlantumlLayoutEngine;
 import lombok.SneakyThrows;
 import lombok.extern.slf4j.Slf4j;
 import picocli.CommandLine;
