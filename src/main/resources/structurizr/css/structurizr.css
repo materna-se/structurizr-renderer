@@ -1,14 +1,11 @@
 body {
-    font-family: Tahoma, Verdana, Helvetica, Arial, sans-serif;
+    font-family: "Open Sans", sans-serif;
     padding-left: 0;
     padding-right: 0;
     line-height: 1.5;
 }
 .centered {
     text-align: center;
-}
-.hidden {
-    display: none;
 }
 #footer {
     text-align: center;
@@ -116,9 +113,6 @@ a:hover {
     font-size: 80px;
     font-weight: bold;
 }
-.thumbnail {
-    border: solid 1px #dddddd;
-}
 .img-thumbnail {
     color: #ddd;
 }
@@ -127,8 +121,6 @@ label {
 }
 .label {
     font-weight: normal;
-    padding: 7px 10px 9px 10px;
-    border-radius: 4px;
 }
 .imageTitle {
     font-size: 13px;
@@ -144,15 +136,14 @@ label {
     margin-right: auto;
 }
 .embedCode {
-    font-size: 12px;
+    font-size: 11px;
 }
 .codeSample {
     font-size: 11px;
 }
 
 a {
-    color: #3066B7;
-    text-decoration: none;
+    color: #1168BD;
 }
 
 .structurizrBackgroundGray {
@@ -168,7 +159,7 @@ a {
     color: #ffffff;
 }
 .structurizrBackgroundBase {
-    background: #3066B7;
+    background: #1168BD;
     color: #ffffff;
 }
 .structurizrBackgroundLight {
@@ -184,16 +175,14 @@ a {
 }
 
 .label-primary {
-    background: #3066B7;
+    background: #1168BD;
 }
 .label-branch {
     background: #08427B;
-    color: #ffffff;
     font-size: 12px;
 }
 .label-version {
-    background: #438DD5;
-    color: white;
+    background: #85BBF0;
     font-size: 12px;
 }
 
@@ -435,6 +424,7 @@ hr {
 #topNavigation, #workspaceSummaryControls {
     background: #ffffff;
     border-bottom: solid 1px #dddddd;
+    box-shadow: 0px 0px 3px #dddddd;
     font-size: 18px;
     font-weight: normal;
 }
@@ -445,6 +435,7 @@ hr {
 #editorControls, #diagramControls, #explorationControls, #documentationControls, #decisionLogControls, #healthControls {
     background: #ffffff;
     border-bottom: solid 1px #dddddd;
+    box-shadow: 0px 0px 3px #dddddd;
 }
 #topNavigation .row, #workspaceSummaryControls .row, #diagramControls .row, #explorationControls .row, #documentationControls .row, #decisionLogControls .row, #healthControls .row {
     margin-left: 0;
@@ -509,7 +500,7 @@ hr {
 }
 
 .joint-link.joint-theme-default .marker-vertex {
-    fill: #dd0000;
+    fill: #1168BD;
     r: 25px;
 }
 
@@ -558,8 +549,8 @@ hr {
     font-size: 14px;
 }
 
-.workspaceLogo {
-    max-height: 48px;
+.brandingLogo {
+    max-height: 35px;
     margin-top: 5px;
 }
 
@@ -568,14 +559,6 @@ hr {
 }
 .btn-active {
     background: #999999;
-}
-.btn-primary, .btn-primary:hover, .btn-primary:active {
-    background: #3066B7;
-    border-color: #3066B7;
-}
-.btn-danger, .btn-danger:hover, .btn-danger:active {
-    background: darkred;
-    border-color: darkred;
 }
 
 #quickFindModal .selected {
@@ -600,45 +583,4 @@ hr {
     padding: 20px;
     background: #999999;
     max-width: 80%;
-}
-.btn-default, .btn-default:hover {
-    background: #ffffff;
-    border: solid 1px #dddddd;
-}
-.btn-default:disabled {
-    background: #ffffff;
-    border: solid 1px #ffffff;
-}
-
-.ace_editor {
-    border: solid 1px #dddddd;
-}
-.ace_content {
-    background: white;
-}
-.ace_structurizr_keyword {
-    color: #1168BD;
-}
-.ace_structurizr_keyword_disabled {
-    color: #cccccc;
-}
-.ace_structurizr_variable {
-    color: #772222;
-}
-.ace_structurizr_string {
-    color: #555555;
-}
-.ace_structurizr_comment {
-    color: #999999;
-}
-.ace_structurizr_default {
-    color: #777777;
-}
-.ace_structurizr_brace {
-    color: #1168BD;
-}
-.ace_structurizr_constant {
-    color: #00aa00;
-}
-.ace_structurizr_whitespace {
 }

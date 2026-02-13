@@ -1,7 +1,7 @@
 structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCallback) {
 
     const self = this;
-    const font = { name: structurizr.ui.DEFAULT_FONT_NAME };
+    const font = structurizr.ui.getBranding().font;
     const gridSize = 5;
     const nameFontSizeDifferenceRatio = 1.4;
     const metadataFontSizeDifferenceRatio = 0.7;
@@ -16,12 +16,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     var zoomDelta = (maxZoomScale - minZoomScale) / zoomSteps;
     var pageSizeDelta = 100;
 
-    const thumbnailWidth = 600;
+    const thumbnailWidth = 800;
 
     var diagramWidth = 0;
     var diagramHeight = 0;
-    var margin = 400;
-    var clusterPadding = 50;
     var scrollBarWidth = 0;
     var lineHeight = '1.2em';
     var diagramKey;
@@ -63,7 +61,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     var cellsByElementId;
     var lines;
     var linesByRelationshipId;
-    var connections;
     var selectedElements = [];
     var highlightedElement = undefined;
     var highlightedLink = undefined;
@@ -123,7 +120,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     const viewport = $('#' + viewportId);
     const canvas = $('#' + canvasId);
 
-    joint.config.useCSSSelectors = true;
     const graph = new joint.dia.Graph;
     const paper = new joint.dia.Paper({
         el: canvas,
@@ -136,7 +132,20 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         gridSize: gridSize,
         scale: scale,
         interactive: editable,
-        defaultConnectionPoint: { name: 'bbox' },
+        linkView: joint.dia.LinkView.extend({
+            pointerclick: function(evt, x, y) {
+                if (editable) {
+                    if (evt.altKey) {
+                        // do nothing
+                    } else {
+                        if (V(evt.target).hasClass('connection') || V(evt.target).hasClass('connection-wrap')) {
+                            self.addVertex({x: x, y: y});
+                        }
+                    }
+                }
+            }
+        }),
+        linkConnectionPoint: undefined,
         clickThreshold: 1,
         sorting: joint.dia.Paper.sorting.APPROX
     });
@@ -156,7 +165,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         tags.push('Boundary:SoftwareSystem');
         tags.push('Boundary:Container');
         tags.push('Group');
-        tags.push('Workspace:Icon');
+        tags.push('Diagram:Icon');
         structurizr.workspace.views.configuration.styles.elements.forEach(function(elementStyle) {
             if (elementStyle.tag.indexOf('Group:') > -1) {
                 tags.push(elementStyle.tag);
@@ -190,6 +199,11 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 }
             })
         });
+
+        const branding = structurizr.ui.getBranding();
+        if (branding.logo) {
+            images.push(branding.logo);
+        }
 
         structurizr.workspace.views.imageViews.forEach(function(view) {
             if (view.content) {
@@ -375,7 +389,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
         lines = [];
         linesByRelationshipId = {};
-        connections = {};
         relationshipStylesInUse = [];
         relationshipStylesInUseMap = {};
 
@@ -538,17 +551,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
         removeIllegalElements();
 
-        var forceApplyAutomaticLayout = true;
-
         if (view.elements) {
-            for (var i = 0; i < view.elements.length; i++) {
-                forceApplyAutomaticLayout = forceApplyAutomaticLayout &&
-                    (
-                        (view.elements[i].x === undefined || view.elements[i].x === 0) &&
-                        (view.elements[i].y === undefined || view.elements[i].y === 0)
-                    );
-            }
-
             for (var i = 0; i < view.elements.length; i++) {
                 var positionX;
                 var positionY;
@@ -750,7 +753,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             }
         }
 
-        if (view.type === structurizr.constants.DEPLOYMENT_VIEW_TYPE || view.type === structurizr.constants.DYNAMIC_VIEW_TYPE) {
+        if (view.type === structurizr.constants.DEPLOYMENT_VIEW_TYPE) {
             var unusedDeploymentNodeCells = [];
 
             // this first loop creates deployment nodes, nesting any software system/container instances and infrastructure nodes that have already been created
@@ -899,30 +902,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         }
 
         for (var i = 0; i < relationships.length; i++) {
-            const relationshipView = relationships[i];
-
-            var line = createArrow(relationshipView);
+            var line = createArrow(relationships[i]);
             if (line !== undefined) {
                 lines.push(line);
-                linesByRelationshipId[relationshipView.id] = line;
-
-                const relationship = structurizr.workspace.findRelationshipById(relationshipView.id);
-
-                const sourceElementId = relationship.sourceId;
-                var connectionsFromElement = connections[sourceElementId];
-                if (connectionsFromElement === undefined) {
-                    connectionsFromElement = [];
-                }
-                connectionsFromElement.push(paper.findViewByModel(line));
-                connections[sourceElementId] = connectionsFromElement;
-
-                const destinationElementId = relationship.destinationId;
-                var connectionsToElement = connections[destinationElementId];
-                if (connectionsToElement === undefined) {
-                    connectionsToElement = [];
-                }
-                connectionsToElement.push(paper.findViewByModel(line));
-                connections[destinationElementId] = connectionsToElement;
+                linesByRelationshipId[relationships[i].id] = line;
             }
         }
 
@@ -977,32 +960,12 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         // adjust any overlapping vertices, and bring all relationships to the front
         lines.forEach(function(line) {
             try {
-                //adjustVertices(graph, line);
+                adjustVertices(graph, line);
                 line.toFront();
             } catch (e) {
                 console.log(e);
             }
         });
-
-        if (view.automaticLayout) {
-            if (view.automaticLayout) {
-                structurizr.diagram.applyAutomaticLayout(
-                    view.automaticLayout.rankDirection,
-                    view.automaticLayout.rankSeparation,
-                    view.automaticLayout.nodeSeparation,
-                    view.automaticLayout.edgeSeparation,
-                    view.automaticLayout.vertices
-                );
-            }
-        } else if (forceApplyAutomaticLayout) {
-            structurizr.diagram.applyAutomaticLayout(
-                structurizr.ui.DEFAULT_AUTOLAYOUT_RANK_DIRECTION,
-                structurizr.ui.DEFAULT_AUTOLAYOUT_RANK_SEPARATION,
-                structurizr.ui.DEFAULT_AUTOLAYOUT_NODE_SEPARATION,
-                structurizr.ui.DEFAULT_AUTOLAYOUT_EDGE_SEPARATION,
-                structurizr.ui.DEFAULT_AUTOLAYOUT_VERTICES
-            );
-        }
 
         if (callback !== undefined) {
             callback();
@@ -1130,7 +1093,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             boundary.embed(cell);
         }
 
-        //boundary.toFront({ deep: true });
+        boundary.toFront({ deep: true });
     }
 
     function findRootGroup(name, scope) {
@@ -1496,11 +1459,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
     function runFilter() {
-        var itemsHidden = false;
         const hiddenOpacity = '0.1';
 
         const elements = [];
-        Object.keys(cellsByElementId).forEach(function(elementId) {
+        Object.keys(cellsByElementId).forEach(function (elementId) {
             const cell = cellsByElementId[elementId];
             elements.push(structurizr.workspace.findElementById(cell.elementInView.id));
         });
@@ -1517,14 +1479,12 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                         showElement(element.id);
                     } else {
                         hideElement(element.id, hiddenOpacity);
-                        itemsHidden = true;
                     }
                 } else {
                     showElement(element.id);
                 }
             } else {
                 hideElement(element.id, hiddenOpacity);
-                itemsHidden = true;
             }
         });
 
@@ -1540,22 +1500,14 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                         showRelationship(relationship.id);
                     } else {
                         hideRelationship(relationship.id, hiddenOpacity);
-                        itemsHidden = true;
                     }
                 } else {
                     showRelationship(relationship.id);
                 }
             } else {
                 hideRelationship(relationship.id, hiddenOpacity);
-                itemsHidden = true;
             }
         });
-
-        if (itemsHidden) {
-            hideBoundaries(hiddenOpacity);
-        } else {
-            showBoundaries();
-        }
     }
 
     this.getCurrentView = function() {
@@ -1649,6 +1601,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
     this.decreasePageSize = function(evt) {
         currentView.paperSize = undefined;
+        $('#pageSize option#none').prop('selected', true);
         this.setPageSize(Math.max(diagramWidth - pageSizeDelta, diagramMetadataWidth), diagramHeight - pageSizeDelta);
 
         if (evt.altKey === false) {
@@ -1666,12 +1619,15 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         contentWidth = Math.max(contentWidth, diagramMetadataWidth);
 
         this.setPageSize(contentWidth, contentHeight);
+        currentView.paperSize = undefined;
+        $('#pageSize option#none').prop('selected', true);
 
         centreDiagram();
     };
 
     this.increasePageSize = function(evt) {
         currentView.paperSize = undefined;
+        $('#pageSize option#none').prop('selected', true);
         this.setPageSize(diagramWidth + pageSizeDelta, diagramHeight + pageSizeDelta);
 
         if (evt.altKey === false) {
@@ -1686,10 +1642,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     this.getHeight = function() {
         return diagramHeight;
     };
-
-    this.getAspectRatio = function() {
-        return diagramWidth / diagramHeight;
-    }
 
     function renderElementInternals(element, cell, configuration, width, horizontalOffset, height, verticalOffset) {
         const defaultIconWidth = 60;
@@ -1958,7 +1910,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
     function createHexagon(view, element, configuration, x, y) {
-        var width = configuration.width;
+        var width = Math.floor((configuration.width/2) * Math.sqrt(3));
         var height = Math.floor((configuration.width/2) * Math.sqrt(3));
 
         var points =    (configuration.width/4) + ",0 " +
@@ -1977,7 +1929,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 y: y
             },
             size: {
-                width: width,
+                width: configuration.width,
                 height: height
             },
             attrs: {
@@ -2002,7 +1954,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
     function createDiamond(view, element, configuration, x, y) {
         var width = configuration.width;
-        var height = configuration.width;
+        var height = configuration.height;
 
         var points =
             (width/2) + ",0 " +
@@ -2019,7 +1971,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 y: y
             },
             size: {
-                width: width,
+                width: configuration.width,
                 height: height
             },
             attrs: {
@@ -2382,9 +2334,9 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                     width: tabWidth,
                     height: tabHeight*2,
                     rx: 10,
-                    ry: 10,
+                    ry: 10
                 },
-                '.structurizrFolderBody': {
+                '.structurizrFolder': {
                     fill: fill,
                     stroke: stroke,
                     'stroke-width': configuration.strokeWidth,
@@ -2888,7 +2840,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         diagramMetadataWidth = 0;
 
         if (showTitle) {
-            diagramTitle = structurizr.util.removeNewlineCharacters(structurizr.ui.getTitleForView(viewOrFilter));
+            diagramTitle = structurizr.ui.getTitleForView(viewOrFilter);
         }
 
         diagramTitleElement = new structurizr.shapes.DiagramTitle({
@@ -2948,7 +2900,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
         if (showMetadata) {
             if (structurizr.workspace.id === 0) {
-                // playground
+                // demo page
                 diagramMetadata = new Date().toLocaleString(locale, options);
             } else {
                 const lastModified = structurizr.workspace.lastModifiedDate;
@@ -3001,8 +2953,12 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
         var icon = structurizr.ui.findElementStyle( {
             type: undefined,
-            tags: 'Workspace:Icon'
+            tags: 'Diagram:Icon'
         }, darkMode).icon;
+
+        if (icon === undefined) {
+            icon = structurizr.ui.getBranding().logo;
+        }
 
         if (icon) {
             brandingLogo = new structurizr.shapes.BrandingImage({
@@ -3120,7 +3076,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
     function formatName(element, configuration, width) {
-        return breakText(element.name ? structurizr.util.removeNewlineCharacters(element.name) : "", Math.max(0, width), font.name, (configuration.fontSize * nameFontSizeDifferenceRatio));
+        return breakText(element.name ? element.name : "", Math.max(0, width), font.name, (configuration.fontSize * nameFontSizeDifferenceRatio));
     }
 
     function formatDescription(element, configuration, width) {
@@ -3158,12 +3114,8 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         }
     }
 
-    function formatTechnologyForRelationship(relationship, configuration) {
-        if (configuration.metadata !== undefined && configuration.metadata === false) {
-            return '';
-        } else {
-            return structurizr.ui.getMetadataForRelationship(relationship);
-        }
+    function formatTechnologyForRelationship(relationship) {
+        return structurizr.ui.getMetadataForRelationship(relationship);
     }
 
     function breakText(text, width, font, fontSize) {
@@ -3222,13 +3174,14 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
     function calculateArrowHead(thickness) {
-        var size = (thickness * 10);
-        if (size > 50) {
-            size = 50;
+        var width = (thickness * 10);
+        if (width > 50) {
+            width = 50;
         }
+        var height = width;
 
-        // e.g. M 20 -10 0 0 20 10 Z
-        return 'M ' + size + ' -' + (size/2) + ' 0 0 ' + size + ' ' + (size/2) + ' Z';
+        // e.g. M 30 0 L 0 15 L 30 30 z
+        return 'M ' + height + ' 0 L 0 ' + (width/2) + ' L ' + height + ' ' + width + ' z';
     }
 
     function removeIllegalElements() {
@@ -3378,14 +3331,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 }
             }
 
-            if (configuration.description !== undefined && configuration.description === false) {
-                description = '';
-            } else {
-                description = breakText(description, configuration.width, font.name, configuration.fontSize);
-            }
+            description = breakText(description, configuration.width, font.name, configuration.fontSize);
             const heightOfDescription = calculateHeight(description, configuration.fontSize, 0);
 
-            var technology = formatTechnologyForRelationship(relationship, configuration);
+            var technology = formatTechnologyForRelationship(relationship);
             technology = breakText(technology, configuration.width, font.name, configuration.fontSize * metadataFontSizeDifferenceRatio);
             const heightOfTechnology = calculateHeight(technology, configuration.fontSize * metadataFontSizeDifferenceRatio, 0);
 
@@ -3429,14 +3378,12 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             labels.push({
                     position: {
                         distance: position / 100,
-                        offset: { x: 0, y: (heightOfDescription / 2) - (totalHeight / 2) },
-                        calculatedOffset: { x: 0, y: (heightOfDescription / 2) - (totalHeight / 2) }
+                        offset: { x: 0, y: (heightOfDescription / 2) - (totalHeight / 2) }
                     },
                     attrs: {
                         rect: {
                             fill: canvasColor,
-                            'pointer-events': 'none',
-                            class: 'structurizrDescription'
+                            'pointer-events': 'none'
                         },
                         text: {
                             text: description,
@@ -3445,8 +3392,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                             'font-weight': 'normal',
                             'font-size': configuration.fontSize + 'px',
                             'pointer-events': 'none',
-                            'lineHeight': lineHeight,
-                            class: 'structurizrDescription'
+                            'lineHeight': lineHeight
                         }
                     }
                 });
@@ -3462,18 +3408,17 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                         rect: {
                             'class': 'structurizrMetaData',
                             fill: canvasColor,
-                            'pointer-events': 'none',
-                            class: 'structurizrMetaData'
+                            'pointer-events': 'none'
                         },
                         text: {
+                            'class': 'structurizrMetaData',
                             text: technology,
                             fill: fill,
                             'font-family': font.name,
                             'font-weight': 'normal',
                             'font-size': (configuration.fontSize * metadataFontSizeDifferenceRatio) + 'px',
                             'pointer-events': 'none',
-                            'lineHeight': lineHeight,
-                            class: 'structurizrMetaData'
+                            'lineHeight': lineHeight
                         }
                     }
                 });
@@ -3492,7 +3437,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 }
             });
 
-            const link = new structurizr.shapes.Relationship({
+            var link = new structurizr.shapes.Relationship({
                 source: {
                     id: sourceBox.id
                 },
@@ -3503,18 +3448,16 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             });
 
             link.attr({
-                line: {
+                '.connection': {
                     stroke: fill,
                     'stroke-width': configuration.thickness,
                     'stroke-dasharray': dashArrayForRelationship(configuration),
-                    'fill': 'none',
-                    targetMarker: {
-                        'type': 'path',
-                        stroke: fill,
-                        fill: fill,
-                        d: triangle
-                    }
-                }
+                    'fill': 'none'
+                },
+                '.connection-wrap': {fill: 'none'},
+                '.marker-target': {stroke: fill, fill: fill, d: triangle},
+                '.link-tools': {display: 'none'},
+                '.marker-arrowheads': {display: 'none'}
             });
 
             setRouting(link, routing);
@@ -3549,25 +3492,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             if (navigationEnabled) {
                 addDoubleClickHandlerForRelationship(paper.findViewByModel(link), relationship);
             }
-
-            if (editable) {
-                const toolsView = new joint.dia.ToolsView({
-                    tools: [
-                        new joint.linkTools.Vertices({
-                            vertexAdding: true,
-                            vertexMoving: true,
-                            vertexRemoving: true,
-                            scale: 2
-                        })
-                        //new joint.linkTools.Segments()
-                    ]
-                });
-
-                const linkView = link.findView(paper);
-                linkView.addTools(toolsView);
-            }
-
-            link.set('labelSize', { width: configuration.width * 1.2, height: totalHeight });
 
             return link;
         } else {
@@ -3684,7 +3608,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         var fill;
         var icon;
         var strokeWidth = 2;
-        var nameText = structurizr.util.removeNewlineCharacters(name);
+        var nameText = name;
 
         if (type === structurizr.constants.GROUP_ELEMENT_TYPE) {
             elementStyle = structurizr.ui.findElementStyle( {
@@ -3810,12 +3734,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         }
 
         const boundary = new structurizr.shapes.Boundary({
-            size: { width: 400, height: 400 },
             attrs: {
                 '.structurizrBoundary': {
                     stroke: stroke,
                     fill: fill,
-                    opacity: editable ? 0.6 : 1.0,
                     'stroke-width': strokeWidth,
                     'stroke-dasharray': dashArrayForElement(elementStyle),
                     rx: cornerRadius,
@@ -3848,9 +3770,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         boundary._computedStyle.stroke = stroke;
         boundary._computedStyle.fontSize = elementStyle.fontSize;
 
-        var cellView = paper.findViewByModel(boundary);
-        const widthOfName = $('#' + cellView.id + ' .structurizrName')[0].getComputedTextLength();
-
         if (icon) {
             var iconRatio = getImageRatio(icon);
             var widthOfIcon = (heightOfIcon * iconRatio);
@@ -3860,12 +3779,9 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             boundary.attributes.attrs['.structurizrIcon']['height'] = heightOfIcon;
             boundary.attributes.attrs['.structurizrIcon']['opacity'] = (elementStyle.opacity/100);
             boundary._computedStyle.icon = icon;
-
-            boundary._computedStyle.minimumWidth = widthOfIcon + 10 + widthOfName;
-        } else {
-            boundary._computedStyle.minimumWidth = widthOfName;
         }
 
+        var cellView = paper.findViewByModel(boundary);
         $('#' + cellView.id).attr('style', 'cursor: ' + (editable === true ? 'move' : 'default') + ' !important');
 
         return boundary;
@@ -3916,11 +3832,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                     stroke: stroke,
                     'stroke-width': strokeWidth,
                     'stroke-dasharray': dashArrayForElement(configuration),
-                    fill: fill,
-                    opacity: editable ? 0.6 : 1.0
+                    fill: fill
                 },
                 '.structurizrName': {
-                    text: structurizr.util.removeNewlineCharacters(element.name),
+                    text: element.name,
                     'font-family': font.name,
                     'font-weight': 'bold',
                     'font-size': (configuration.fontSize * nameFontSizeDifferenceRatio) + 'px',
@@ -3954,10 +3869,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         cell._computedStyle.fontSize = configuration.fontSize;
         cell._computedStyle.opacity = configuration.opacity;
 
-        var cellView = paper.findViewByModel(cell);
-        const widthOfName = $('#' + cellView.id + ' .structurizrName')[0].getComputedTextLength();
-        const widthOfMetadata = $('#' + cellView.id + ' .structurizrMetaData')[0].getComputedTextLength();
-
         if (configuration.icon) {
             var iconRatio = getImageRatio(configuration.icon);
             var widthOfIcon = (heightOfIcon * iconRatio);
@@ -3967,12 +3878,9 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             cell.attributes.attrs['.structurizrIcon']['height'] = heightOfIcon;
             cell.attributes.attrs['.structurizrIcon']['opacity'] = (configuration.opacity/100);
             cell._computedStyle.icon = configuration.icon;
-
-            cell._computedStyle.minimumWidth = widthOfIcon + 10 + Math.max(widthOfName, widthOfMetadata);
-        } else {
-            cell._computedStyle.minimumWidth = Math.max(widthOfName, widthOfMetadata);
         }
 
+        var cellView = paper.findViewByModel(cell);
         const domElement = $('#' + cellView.id);
         domElement.attr('style', 'cursor: ' + (editable === true ? 'move' : 'default') + ' !important');
 
@@ -4026,28 +3934,35 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
     this.setPaperSize = function(view) {
-        if (view.dimensions === undefined) {
-            view.dimensions = { width: 2000, height: 2000 };
-
-            // no dimensions set: use legacy paper size
+        if (view.dimensions !== undefined) {
             if (view.paperSize !== undefined) {
-                const dimensions = new structurizr.ui.PaperSizes().getDimensions(view.paperSize);
-                if (dimensions) {
-                    view.dimensions.width = dimensions.width;
-                    view.dimensions.height = dimensions.height;
+                var dimensions = new structurizr.ui.PaperSizes().getDimensions(view.paperSize);
+                if (dimensions.width === view.dimensions.width && dimensions.height === view.dimensions.height) {
+                    this.changePaperSize(view.paperSize);
+                } else {
+                    $('#pageSize option#none').prop('selected', true);
                 }
+            } else {
+                view.dimensions.width = Math.max(view.dimensions.width, diagramMetadataWidth);
+                $('#pageSize option#none').prop('selected', true);
             }
-        } else {
-            // check dimensions are valid
-            if (view.dimensions.width < 500) {
-                view.dimensions.width = 2000;
-            }
-            if (view.dimensions.height < 500) {
-                view.dimensions.height = 2000;
-            }
-        }
 
-        this.setPageSize(view.dimensions.width, view.dimensions.height);
+            this.setPageSize(view.dimensions.width, view.dimensions.height);
+        } else {
+            if (view.paperSize === undefined) {
+                view.paperSize = 'A5_Landscape';
+            }
+
+            this.changePaperSize(view.paperSize);
+        }
+    };
+
+    this.changePaperSize = function(paperSize) {
+        currentView.paperSize = paperSize;
+        $('#pageSize option#' + paperSize).prop('selected', true);
+
+        var dimensions = new structurizr.ui.PaperSizes().getDimensions(paperSize);
+        this.setPageSize(dimensions.width, dimensions.height);
     };
 
     function reposition(parentCell) {
@@ -4057,18 +3972,18 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             const fontSize = parentCell._computedStyle.fontSize;
 
             var defaultInternalPadding = '20';
-            var internalPadding = clusterPadding;
+            var internalPadding;
             var margin = 15;
 
-            // if (parentCell.elementInView === undefined) {
-            //     internalPadding = parseInt(getViewOrViewSetProperty(viewOrFilter, 'structurizr.groupPadding', defaultInternalPadding));
-            // } else {
-            //     if (parentCell.elementInView.type === structurizr.constants.DEPLOYMENT_NODE_ELEMENT_TYPE) {
-            //         internalPadding = parseInt(getViewOrViewSetProperty(viewOrFilter, 'structurizr.deploymentNodePadding', defaultInternalPadding));
-            //     } else {
-            //         internalPadding = parseInt(getViewOrViewSetProperty(viewOrFilter, 'structurizr.boundaryPadding', defaultInternalPadding));
-            //     }
-            // }
+            if (parentCell.elementInView === undefined) {
+                internalPadding = parseInt(getViewOrViewSetProperty(viewOrFilter, 'structurizr.groupPadding', defaultInternalPadding));
+            } else {
+                if (parentCell.elementInView.type === structurizr.constants.DEPLOYMENT_NODE_ELEMENT_TYPE) {
+                    internalPadding = parseInt(getViewOrViewSetProperty(viewOrFilter, 'structurizr.deploymentNodePadding', defaultInternalPadding));
+                } else {
+                    internalPadding = parseInt(getViewOrViewSetProperty(viewOrFilter, 'structurizr.boundaryPadding', defaultInternalPadding));
+                }
+            }
 
             const padding = { top: internalPadding, right: internalPadding, bottom: internalPadding + margin, left: internalPadding };
 
@@ -4106,11 +4021,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             var newHeight = maxY - minY + padding.top + padding.bottom;
             var newX = minX - padding.left;
             var newY = minY - padding.top;
-
-            const minimumWidth = parentCell._computedStyle.minimumWidth;
-            if (minimumWidth) {
-                newWidth = Math.max(newWidth, minimumWidth + margin + margin);
-            }
 
             var refX = (margin / newWidth);
 
@@ -4454,13 +4364,8 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
     this.resize = function() {
         if (structurizr.ui.isFullScreen()) {
-            if (this.isEditable()) {
-                viewport.width($(window).width());
-                viewport.height($(window).height() - $('#diagramControls').height());
-            } else {
-                viewport.width($(window).width());
-                viewport.height($(window).height());
-            }
+            viewport.width($(window).width());
+            viewport.height($(window).height());
         } else {
             viewport.width(this.getPossibleViewportWidth());
 
@@ -4999,10 +4904,40 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         };
     }
 
-    function convertDiagramToPNG(options, callback) {
-        const svg = self.exportCurrentDiagramToSVG(options);
+    function convertDiagramToPNG(includeDiagramMetadata, crop, callback) {
+        var svgMarkup = self.exportCurrentDiagramToSVG(includeDiagramMetadata);
 
-        return svgToPng(svg.markup, svg.width, svg.height, callback);
+        var contentArea;
+        if (crop === true) {
+            contentArea = findContentArea(true, 50);
+        } else {
+            contentArea = {
+                minX: 0,
+                minY: 0,
+                maxX: diagramWidth,
+                maxY: diagramHeight
+            }
+        }
+
+        const width = contentArea.maxX - contentArea.minX;
+        const height = contentArea.maxY - contentArea.minY;
+
+        const viewbox = ' viewBox="' + contentArea.minX + " " + contentArea.minY + " " + width + " " + height + '"';
+        const svgOpeningTag = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="' + width +'" height="' + height + '" style="width: ' + width + 'px; height: ' + height + 'px; background: ' + canvasColor + '"' + viewbox + '>';
+
+        // replace opening tag with dimensions (some browsers seem to require this)
+        svgMarkup = svgOpeningTag + svgMarkup.substring(svgMarkup.indexOf('>') + 1, svgMarkup.length);
+
+        // this hides the handles used to change vertices
+        svgMarkup = svgMarkup.replace(/class="marker-vertices"/g, 'class="marker-vertices" display="none"');
+
+        // and remove the &nbsp; added by JointJS (otherwise you get a blank PNG file)
+        svgMarkup = svgMarkup.replace(/&nbsp;/g, ' ');
+
+        // remove any control characters (these shouldn't be there anyway, but...)
+        svgMarkup = svgMarkup.replace(/[\x00-\x19]+/g, "");
+
+        return svgToPng(svgMarkup, width, height, callback);
     }
 
     function svgToPng(svgMarkup, width, height, callback) {
@@ -5026,20 +4961,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
 
-    this.exportCurrentDiagramToSVG = function(options, callback) {
-        if (options === undefined) {
-            options = {
-                metadata: true,
-                crop: false
-            }
-        }
-
-        const includeDiagramMetadata = options.metadata;
-        const crop = options.crop;
-
-        var width = diagramWidth;
-        var height = diagramHeight;
-
+    this.exportCurrentDiagramToSVG = function(includeDiagramMetadata) {
         var currentScale = scale;
         this.zoomTo(1.0);
 
@@ -5052,11 +4974,17 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         var svgMarkup = getSvgOfCurrentDiagram();
         svgMarkup = svgMarkup.substring(svgMarkup.indexOf(">") +1 );
 
-        svgMarkup = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 ' + diagramWidth + ' ' + diagramHeight + '" style="background: ' + canvasColor + '">' + svgMarkup;
+        var font = '';
+        const branding = structurizr.ui.getBranding();
+        if (branding.font.url) {
+            font = '<defs><style>@import url(' + branding.font.url + ');</style></defs>';
+        }
+
+        svgMarkup = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 ' + diagramWidth + ' ' + diagramHeight + '" style="background: ' + canvasColor + '">' + font + svgMarkup;
 
         // remove some cursor definitions (leave the pointer and zoom-in cursors)
         svgMarkup = svgMarkup.replace(/cursor: move !important/g, '');
-        svgMarkup = svgMarkup.replace(/class="joint-tools-layer"/g, 'class="joint-tools-layer" display="none"');
+        svgMarkup = svgMarkup.replace(/class="marker-vertices"/g, 'class="marker-vertices" display="none"');
 
         svgMarkup = svgMarkup.replace(/class="[\w -]*"/g, '');
         svgMarkup = svgMarkup.replace(/data-type="[\w.]*"/g, '');
@@ -5072,65 +5000,25 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         $(".structurizrNavigation").attr('display', 'block');
         $(".structurizrMetadata>tspan").attr('display', 'block');
 
-        if (crop) {
-            var contentArea;
-            if (crop === true) {
-                contentArea = findContentArea(true, 50);
-            } else {
-                contentArea = {
-                    minX: 0,
-                    minY: 0,
-                    maxX: diagramWidth,
-                    maxY: diagramHeight
-                }
-            }
-
-            width = contentArea.maxX - contentArea.minX;
-            height = contentArea.maxY - contentArea.minY;
-
-            const viewbox = ' viewBox="' + contentArea.minX + " " + contentArea.minY + " " + width + " " + height + '"';
-            const svgOpeningTag = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" width="' + width +'" height="' + height + '" style="width: ' + width + 'px; height: ' + height + 'px; background: ' + canvasColor + '"' + viewbox + '>';
-
-            // replace opening tag with dimensions (some browsers seem to require this)
-            svgMarkup = svgOpeningTag + svgMarkup.substring(svgMarkup.indexOf('>') + 1, svgMarkup.length);
-
-            // this hides the handles used to change vertices
-            svgMarkup = svgMarkup.replace(/class="marker-vertices"/g, 'class="marker-vertices" display="none"');
-
-            // and remove the &nbsp; added by JointJS (otherwise you get a blank PNG file)
-            svgMarkup = svgMarkup.replace(/&nbsp;/g, ' ');
-
-            // remove any control characters (these shouldn't be there anyway, but...)
-            svgMarkup = svgMarkup.replace(/[\x00-\x19]+/g, "");
-        }
-
-        const result = {
-            markup: svgMarkup,
-            width: width,
-            height: height
-        };
-
-        if (callback !== undefined) {
-            callback(result.markup);
-        } else {
-            return result;
-        }
+        return svgMarkup;
     };
 
-    this.exportCurrentDiagramKeyToSVG = function(callback) {
+    this.exportCurrentDiagramKeyToSVG = function() {
         var svgMarkup = diagramKey;
+
+        var font = '';
+        const branding = structurizr.ui.getBranding();
+        if (branding.font.url) {
+            font = '<defs><style>@import url(' + branding.font.url + ');</style></defs>';
+        }
 
         var diagramKeyWidth = svgMarkup.match(/width="(\d*)"/)[1];
         var diagramKeyHeight = svgMarkup.match(/height="(\d*)"/)[1];
 
         svgMarkup = svgMarkup.substring(svgMarkup.indexOf(">") +1 );
-        svgMarkup = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 ' + diagramKeyWidth + ' ' + diagramKeyHeight + '" style="background: ' + canvasColor + '">' + svgMarkup;
+        svgMarkup = '<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" version="1.1" viewBox="0 0 ' + diagramKeyWidth + ' ' + diagramKeyHeight + '" style="background: ' + canvasColor + '">' + font + svgMarkup;
 
-        if (callback !== undefined) {
-            callback(svgMarkup);
-        } else {
-            return svgMarkup;
-        }
+        return svgMarkup;
     };
 
     function resizeImage(url, width, height, callback) {
@@ -5147,36 +5035,16 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         sourceImage.src = url;
     }
 
-    this.exportCurrentDiagram = function(options, callback) {
-        if (options.format === 'png') {
-            return this.exportCurrentDiagramToPNG(options, callback);
-        } else {
-            return this.exportCurrentDiagramToSVG(options, callback);
-        }
-    };
-
-    this.exportCurrentDiagramToPNG = function(options, callback) {
+    this.exportCurrentDiagramToPNG = function(includeDiagramMetadata, crop, callback) {
         var currentScale = scale;
         this.zoomTo(1.0);
         $(".structurizrNavigation").attr('display', 'none');
 
-        convertDiagramToPNG(options, function(png) {
+        convertDiagramToPNG(includeDiagramMetadata, crop, function(png) {
             $(".structurizrNavigation").attr('display', 'block');
             self.zoomTo(currentScale);
             callback(png);
         });
-    };
-
-    this.exportCurrentDiagramKey = function(options, callback) {
-        if (currentView.type === structurizr.constants.IMAGE_VIEW_TYPE) {
-            return callback(undefined);
-        }
-
-        if (options.format === 'png') {
-            return this.exportCurrentDiagramKeyToPNG(callback);
-        } else {
-            return this.exportCurrentDiagramKeyToSVG(callback);
-        }
     };
 
     this.exportCurrentDiagramKeyToPNG = function(callback) {
@@ -5189,7 +5057,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
     this.exportCurrentThumbnailToPNG = function(callback) {
         try {
-            convertDiagramToPNG({ metadata: true, crop: false }, function(exportedImage) {
+            convertDiagramToPNG(true, false, function(exportedImage) {
                 $(".structurizrNavigation").attr('display', 'block');
                 resizeImage(exportedImage, thumbnailWidth, Math.floor(diagramHeight / (diagramWidth / thumbnailWidth)), callback);
             });
@@ -5200,10 +5068,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
     this.currentViewIsDynamic = function() {
         return currentView.type === structurizr.constants.DYNAMIC_VIEW_TYPE;
-    };
-
-    this.currentViewIsImage = function() {
-        return currentView.type === structurizr.constants.IMAGE_VIEW_TYPE;
     };
 
     this.currentViewHasAnimation = function() {
@@ -5380,22 +5244,11 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         }
     };
 
-    function highlightRelationship(cellView) {
-        $('#' + cellView.id).children().first().css({
-            'stroke': '#aaaaaa',
-            'stroke-width': 15
-        });
-    }
-
-    function unhighlightRelationship(cellView) {
-        $('#' + cellView.id).children().first().css({
-            'stroke': '',
-            'stroke-width': 10
-        });
-    }
-
     function hideAllLines(opacity) {
-        $('.joint-link').css('opacity', opacity);
+        $('g .connection-wrap').attr('class', 'connection-wrap');
+        $('g .connection').css('opacity', opacity);
+        $('g .marker-target').css('opacity', opacity);
+        $('g .label').css('opacity', opacity);
     }
 
     function hideAllElements(opacity) {
@@ -5418,39 +5271,31 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
     }
 
     function showRelationship(relationshipId, order) {
-        Object.keys(mapOfIdToLine).forEach(function(id) {
-            var line;
-            if (order) {
-                if (id === relationshipId + '/' + order) {
-                    line = mapOfIdToLine[id];
-                }
-            } else {
-                if (id === relationshipId || id.split('/')[0] === relationshipId) {
-                    line = mapOfIdToLine[id];
-                }
+        var line = mapOfIdToLine[relationshipId + (order ? '/' + order : '')];
+        if (line) {
+            var lineView = paper.findViewByModel(line);
+            if (lineView) {
+                var connectionWrap = $('#' + lineView.el.id + ' .connection-wrap');
+                connectionWrap.attr('class', 'connection-wrap');
+                $('#' + lineView.el.id + ' .connection').css('opacity', '1.0');
+                $('#' + lineView.el.id + ' .marker-target').css('opacity', '1.0');
+                $('#' + lineView.el.id + ' .label').css('opacity', '1.0');
             }
-
-            if (line) {
-                var lineView = paper.findViewByModel(line);
-                if (lineView) {
-                    $('#' + lineView.el.id).css('opacity', '1.0');
-                }
-            }
-        });
+        }
     }
 
     function hideRelationship(relationshipId, opacity) {
-        Object.keys(mapOfIdToLine).forEach(function(id) {
-            if (id === relationshipId || id.split('/')[0] === relationshipId) {
-                var line = mapOfIdToLine[id];
-                if (line) {
-                    var lineView = paper.findViewByModel(line);
-                    if (lineView) {
-                        $('#' + lineView.el.id).css('opacity', opacity);
-                    }
-                }
+        var line = mapOfIdToLine[relationshipId];
+        if (line) {
+            var lineView = paper.findViewByModel(line);
+            if (lineView) {
+                var connectionWrap = $('#' + lineView.el.id + ' .connection-wrap');
+                connectionWrap.attr('class', 'connection-wrap');
+                $('#' + lineView.el.id + ' .connection').css('opacity', opacity);
+                $('#' + lineView.el.id + ' .marker-target').css('opacity', opacity);
+                $('#' + lineView.el.id + ' .label').css('opacity', opacity);
             }
-        });
+        }
     }
 
     function showElement(elementId) {
@@ -5541,7 +5386,7 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             selector.css('fill', background);
             selector.css('stroke', stroke);
         } else if (type === "structurizr.folder") {
-            var selector = $('#' + domId + ' .structurizrFolderBody');
+            var selector = $('#' + domId + ' .structurizrFolder');
             selector.css('fill', background);
             selector.css('stroke', stroke);
 
@@ -5635,22 +5480,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             var elementView = paper.findViewByModel(element);
             $('#' + elementView.el.id + ' .structurizrElement').css('opacity', opacity);
         }
-    }
-
-    function hideBoundaries(opacity) {
-        Object.keys(boundariesByElementId).forEach(function(elementId) {
-            const cell = boundariesByElementId[elementId];
-            var cellView = paper.findViewByModel(cell);
-            $('#' + cellView.id).css('opacity', opacity);
-        });
-    }
-
-    function showBoundaries() {
-        Object.keys(boundariesByElementId).forEach(function(elementId) {
-            const cell = boundariesByElementId[elementId];
-            var cellView = paper.findViewByModel(cell);
-            $('#' + cellView.id).css('opacity', 1.0);
-        });
     }
 
     this.stopAnimation = function() {
@@ -6173,14 +6002,6 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         paper.on('cell:mouseover', function (cell, evt) {
             if (cell.model.elementInView) {
                 highlightedElement = cell;
-
-                // and highlight connections to/from element
-                const connectionsForElement = connections[cell.model.elementInView.id];
-                if (connectionsForElement) {
-                    connectionsForElement.forEach(function (cellView) {
-                        highlightRelationship(cellView);
-                    });
-                }
             }
 
             if (cell.model.relationshipInView) {
@@ -6189,12 +6010,11 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 var point = V(paper.viewport).toLocalPoint(evt.clientX, evt.clientY);
                 currentX = point.x;
                 currentY = point.y;
-
-                highlightRelationship(cell);
             }
 
-            const x = evt.clientX;
-            const y = evt.clientY;
+            const offset = parentElement.offset();
+            const x = evt.clientX - offset.left;
+            const y = evt.clientY - offset.top;
 
             if (evt.altKey && tooltip.isVisible()) {
                 // do nothing ... sticky tooltip mode
@@ -6216,24 +6036,8 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
                 if (tooltip) {
                     tooltip.hide();
                 }
-
-                if (highlightedElement) {
-                    // and unhighlight connections to/from element
-                    if (cell.model.elementInView) {
-                        const connectionsForElement = connections[cell.model.elementInView.id];
-                        if (connectionsForElement) {
-                            connectionsForElement.forEach(function (cellView) {
-                                unhighlightRelationship(cellView);
-                            });
-                        }
-                        highlightedElement = undefined;
-                    }
-                }
-
-                if (highlightedLink) {
-                    unhighlightRelationship(cell);
-                    highlightedLink = undefined;
-                }
+                highlightedElement = undefined;
+                highlightedLink = undefined;
             }
         });
 
@@ -6491,10 +6295,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
         });
     };
 
-    this.applyAutomaticLayout = function(rankDirection, rankSeparation, nodeSeparation, edgeSeparation, linkVertices) {
+    this.runDagre = function(rankDirection, rankSeparation, nodeSeparation, edgeSeparation, linkVertices, margin, resize) {
         try {
             var cellViews = [];
-            cells.forEach(function(cell) {
+            cells.forEach(function (cell) {
                 var element = paper.findViewByModel(cell);
                 if (element.model.positionCalculated === false) {
                     cellViews.push(element);
@@ -6523,42 +6327,26 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             }
 
             joint.layout.DirectedGraph.layout(graph, {
-                rankSep: rankSeparation,
                 nodeSep: nodeSeparation,
+                rankSep: rankSeparation,
                 edgeSep: edgeSeparation,
                 setLinkVertices: linkVertices,
-                setLabels: true,
                 rankDir: direction,
-                marginX: 0,
-                marginY: 0,
-                // ranker: 'network-simplex',
-                // ranker: 'tight-tree',
-                // ranker: 'longest-path',
-                resizeClusters: true,
-                clusterPadding: {
-                    top: clusterPadding,
-                    left: clusterPadding,
-                    right: clusterPadding,
-                    bottom: clusterPadding
-                }
+                marginX: margin,
+                marginY: margin
             });
 
-            lines.forEach(function(line) {
-                const labels = line.get('labels');
-                if (labels !== undefined && labels.length > 1) {
-                    labels[0].position.offset = labels[0].position.calculatedOffset;
-                    labels[1].position.distance = labels[0].position.distance;
-                }
-            });
-
-            this.autoPageSize();
-            this.zoomToWidthOrHeight();
+            if (resize === true) {
+                this.autoPageSize();
+                this.zoomFitHeight();
+            } else {
+                repositionDiagramMetadata();
+            }
 
             centreDiagram();
             diagramRendered = true;
         } catch (err) {
             console.error('There was an error applying the automatic layout: ' + err);
-            console.error(err)
         }
     }
 
@@ -6642,12 +6430,10 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
 
     function showDescription() {
         $('.structurizrElement .structurizrDescription').css('display', 'block');
-        $('.joint-link .structurizrDescription').css('display', 'block');
     }
 
     function hideDescription() {
         $('.structurizrElement .structurizrDescription').css('display', 'none');
-        $('.joint-link .structurizrDescription').css('display', 'none');
     }
 
     this.showDiagramScope = function(bool) {
@@ -6802,14 +6588,14 @@ structurizr.ui.Diagram = function(id, diagramIsEditable, constructionCompleteCal
             }
         }
     });
-
 };
 
 structurizr.shapes = {};
 
-structurizr.shapes.Box = joint.dia.Element.define(
-    'structurizr.box',
-    {
+structurizr.shapes.Box = joint.dia.Element.extend({
+    markup: '<g class="structurizrElement"><rect class="structurizrBox structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><text class="structurizrDescription"/><g class="structurizrNavigation"><g class="structurizrZoom" /><g class="structurizrDocumentation" /><g class="structurizrDecisions" /><g class="structurizrLink" /></g><image class="structurizrIcon" /></g>',
+    defaults: joint.util.deepSupplement({
+        type: 'structurizr.box',
         attrs: {
             rect: {
                 rx: 1,
@@ -6846,19 +6632,17 @@ structurizr.shapes.Box = joint.dia.Element.define(
                 ref: 'rect'
             }
         }
-    },
-    {
-        markup: '<g class="structurizrElement"><rect class="structurizrBox structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><text class="structurizrDescription"/><g class="structurizrNavigation"><g class="structurizrZoom" /><g class="structurizrDocumentation" /><g class="structurizrDecisions" /><g class="structurizrLink" /></g><image class="structurizrIcon" /></g>'
-    }
-);
+    }, joint.dia.Element.prototype.defaults)
+});
 
-structurizr.shapes.Boundary = joint.dia.Element.define(
-    'structurizr.boundary',
-    {
+structurizr.shapes.Boundary = joint.dia.Element.extend({
+    markup: '<g><rect class="structurizrBoundary structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><image class="structurizrIcon" /></g>',
+    defaults: joint.util.deepSupplement({
+        type: 'structurizr.boundary',
         attrs: {
             rect: {
-                width: 0,
-                height: 0,
+                width: 100,
+                height: 100,
                 rx: 0,
                 ry: 0
             },
@@ -6884,15 +6668,13 @@ structurizr.shapes.Boundary = joint.dia.Element.define(
                 'pointer-events': 'visible'
             }
         }
-    },
-    {
-        markup: '<g><rect class="structurizrBoundary structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><image class="structurizrIcon" /></g>'
-    }
-);
+    }, joint.dia.Element.prototype.defaults)
+});
 
-structurizr.shapes.DeploymentNode = joint.dia.Element.define(
-    'structurizr.deploymentNode',
-    {
+structurizr.shapes.DeploymentNode = joint.dia.Element.extend({
+    markup: '<g class="structurizrElement"><rect class="structurizrDeploymentNode structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><text class="structurizrInstanceCount"/><image class="structurizrIcon" /></g>',
+    defaults: joint.util.deepSupplement({
+        type: 'structurizr.deploymentNode',
         attrs: {
             rect: {
                 width: 100,
@@ -6931,11 +6713,8 @@ structurizr.shapes.DeploymentNode = joint.dia.Element.define(
                 'pointer-events': 'visible'
             }
         }
-    },
-    {
-        markup: '<g class="structurizrElement"><rect class="structurizrDeploymentNode structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><text class="structurizrInstanceCount"/><image class="structurizrIcon" /></g>'
-    }
-);
+    }, joint.dia.Element.prototype.defaults)
+});
 
 structurizr.shapes.DiagramTitle = joint.dia.Element.extend({
     markup: '<g><text class="structurizrDiagramTitle structurizrMetadata"/></g>',
@@ -7009,7 +6788,7 @@ structurizr.shapes.ImageView = joint.dia.Element.extend({
     }, joint.dia.Element.prototype.defaults)
 });
 
-structurizr.shapes.Relationship = joint.shapes.standard.Link;
+structurizr.shapes.Relationship = joint.dia.Link.extend();
 
 structurizr.shapes.Person = joint.dia.Element.extend({
     markup: '<g class="structurizrElement structurizrPerson"><rect class="structurizrPersonBody structurizrHighlightableElement" x="0" y="175" width="450" height="250" rx="70" /><circle class="structurizrPersonHead structurizrHighlightableElement" cx="225" cy="100" r="100" /><line class="structurizrPersonRightArm" x1="90" y1="300" x2="90" y2="450" /><line class="structurizrPersonLeftArm" x1="360" y1="300" x2="360" y2="450" /><text class="structurizrName"/><text class="structurizrMetaData" /><text class="structurizrDescription"/><g class="structurizrNavigation"><g class="structurizrZoom" /><g class="structurizrDocumentation" /><g class="structurizrDecisions" /><g class="structurizrLink" /></g><image class="structurizrIcon" /></g>',
@@ -7200,7 +6979,7 @@ structurizr.shapes.Pipe = joint.dia.Element.extend({
 });
 
 structurizr.shapes.Folder = joint.dia.Element.extend({
-    markup: '<g class="structurizrElement"><rect class="structurizrFolderTab structurizrHighlightableElement" /><rect class="structurizrFolderBody structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><text class="structurizrDescription"/><g class="structurizrNavigation"><g class="structurizrZoom" /><g class="structurizrDocumentation" /><g class="structurizrDecisions" /><g class="structurizrLink" /></g><image class="structurizrIcon" /></g>',
+    markup: '<g class="structurizrElement"><rect class="structurizrFolderTab structurizrHighlightableElement" /><rect class="structurizrFolder structurizrHighlightableElement"/><text class="structurizrName"/><text class="structurizrMetaData"/><text class="structurizrDescription"/><g class="structurizrNavigation"><g class="structurizrZoom" /><g class="structurizrDocumentation" /><g class="structurizrDecisions" /><g class="structurizrLink" /></g><image class="structurizrIcon" /></g>',
     defaults: joint.util.deepSupplement({
         type: 'structurizr.folder',
         attrs: {
@@ -7213,39 +6992,39 @@ structurizr.shapes.Folder = joint.dia.Element.extend({
                 'pointer-events': 'visiblePainted'
 
             },
-            '.structurizrFolderBody': {
+            '.structurizrFolder': {
                 'stroke-width': 2,
                 'pointer-events': 'visiblePainted'
 
             },
             '.structurizrName': {
                 'font-weight': 'bold',
-                ref: '.structurizrFolderBody',
+                ref: '.structurizrFolder',
                 'ref-x': 0.5,
                 'ref-y': 0.15,
                 'text-anchor': 'middle',
                 'pointer-events': 'visible'
             },
             '.structurizrMetaData': {
-                ref: '.structurizrFolderBody',
+                ref: '.structurizrFolder',
                 'ref-x': 0.5,
                 'ref-y': 0.30,
                 'text-anchor': 'middle'
             },
             '.structurizrDescription': {
-                ref: '.structurizrFolderBody',
+                ref: '.structurizrFolder',
                 'ref-x': 0.5,
                 'ref-y': 0.45,
                 'text-anchor': 'middle'
             },
             '.structurizrNavigation': {
-                ref: '.structurizrFolderBody',
+                ref: '.structurizrFolder',
                 'font-weight': 'normal',
                 'ref-x': 0.5,
                 'text-anchor': 'middle'
             },
             '.structurizrIcon': {
-                ref: '.structurizrFolderBody'
+                ref: '.structurizrFolder'
             }
         }
     }, joint.dia.Element.prototype.defaults)
@@ -7816,6 +7595,10 @@ structurizr.ui.PaperSizes = function() {
     definitions['Slide_16_10'] = {
         width: 3508,
         height: 2193
+    };
+
+    this.getDimensions = function(paperSize) {
+        return definitions[paperSize];
     };
 
     this.getDimensions = function(paperSize) {

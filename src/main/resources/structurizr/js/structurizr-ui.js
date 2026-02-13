@@ -1,16 +1,10 @@
-structurizr.ui.DEFAULT_FONT_NAME = 'Tahoma, Verdana, Helvetica, Arial';
+structurizr.ui.DEFAULT_FONT_NAME = "Arial";
+structurizr.ui.DEFAULT_FONT_URL = undefined;
 
 structurizr.ui.RENDERING_MODE_COOKIE_NAME = 'structurizr.renderingMode';
 structurizr.ui.RENDERING_MODE_SYSTEM = '';
 structurizr.ui.RENDERING_MODE_LIGHT = 'light';
 structurizr.ui.RENDERING_MODE_DARK = 'dark';
-
-structurizr.ui.DEFAULT_AUTOLAYOUT_RANK_DIRECTION = 'LeftRight';
-structurizr.ui.DEFAULT_AUTOLAYOUT_RANK_SEPARATION = 100;
-structurizr.ui.DEFAULT_AUTOLAYOUT_NODE_SEPARATION = 50;
-structurizr.ui.DEFAULT_AUTOLAYOUT_EDGE_SEPARATION = 50;
-structurizr.ui.DEFAULT_AUTOLAYOUT_VERTICES = true;
-
 
 structurizr.ui.LIGHT_MODE_DEFAULTS = {
     background: '#ffffff',
@@ -33,40 +27,61 @@ structurizr.ui.getBranding = function() {
         if (theme.logo !== undefined) {
             branding.logo = theme.logo;
         }
+
+        if (theme.font !== undefined) {
+            branding.font = theme.font;
+        }
     })
 
     if (structurizr.workspace.views.configuration.branding.logo !== undefined) {
         branding.logo = structurizr.workspace.views.configuration.branding.logo;
     }
 
+    if (structurizr.workspace.views.configuration.branding.font !== undefined) {
+        branding.font = structurizr.workspace.views.configuration.branding.font;
+    }
+
+    if (branding.font === undefined) {
+        branding.font = {
+            name: structurizr.ui.DEFAULT_FONT_NAME,
+            url: structurizr.ui.DEFAULT_FONT_URL
+        }
+    }
+
     return branding;
 }
 
-structurizr.ui.applyWorkspaceLogo = function() {
-    const logoLight = structurizr.ui.findElementStyle( { type: undefined, tags: 'Workspace:Icon' }, false).icon;
-    const logoDark = structurizr.ui.findElementStyle( { type: undefined, tags: 'Workspace:Icon' }, true).icon;
+structurizr.ui.applyBranding = function() {
+    var branding = structurizr.ui.getBranding();
+    if (branding.font.url) {
+        const head = document.head;
+        const link = document.createElement('link');
 
-    if (logoLight) {
-        const workspaceLogo = $('.img-light.workspaceLogo');
-        workspaceLogo.attr('src', logoLight);
+        link.type = 'text/css';
+        link.rel = 'stylesheet';
+        link.href = branding.font.url;
+
+        head.appendChild(link);
     }
 
-    if (logoDark) {
-        const workspaceLogo = $('.img-dark.workspaceLogo');
-        workspaceLogo.attr('src', logoDark);
-    }
+    var fontNames = '';
+    branding.font.name.split(',').forEach(function(fontName) {
+        fontNames += '"' + structurizr.util.escapeHtml(fontName.trim()) + '", ';
+    });
 
-    $('#workspaceLogoAnchor').removeClass('hidden');
+    const brandingStyles = $('#brandingStyles');
+    brandingStyles.append('#documentationPanel { font-family: ' + fontNames.substr(0, fontNames.length-2) + ' }');
+
+    if (branding.logo) {
+        const brandingLogo = $('.brandingLogo');
+        brandingLogo.attr('src', branding.logo);
+        brandingLogo.removeClass('hidden');
+    }
 }
 
-structurizr.ui.loadThemes = function(callback) {
+structurizr.ui.loadThemes = function(localPrebuiltThemesUrl, callback) {
     structurizr.workspace.views.configuration.themes.forEach(function(theme) {
-        if (theme.indexOf('http') === 0) {
-            structurizr.ui.loadTheme(theme);
-        } else {
-            // built-in theme
-            structurizr.ui.loadTheme('/static/themes/' + theme + '/theme.json');
-        }
+        structurizr.ui.loadTheme(localPrebuiltThemesUrl, theme);
     });
 
     setTimeout(function() {
@@ -84,7 +99,13 @@ structurizr.ui.waitForThemesToLoad = function(callback) {
     }
 }
 
-structurizr.ui.loadTheme = function( url) {
+structurizr.ui.loadTheme = function(localPrebuiltThemesUrl, url) {
+    // use local versions of the prebuilt themes if configured
+    const prebuiltThemesUrl = 'https://static.structurizr.com/themes/';
+    if (url.indexOf(prebuiltThemesUrl) === 0) {
+        url = localPrebuiltThemesUrl + url.substring(prebuiltThemesUrl.length);
+    }
+
     $.get(url, undefined, function(data) {
         try {
             const theme = JSON.parse(data);
@@ -117,7 +138,8 @@ structurizr.ui.loadTheme = function( url) {
                 {
                     elements: theme.elements.sort(structurizr.util.sortStyles),
                     relationships: theme.relationships.sort(structurizr.util.sortStyles),
-                    logo: theme.logo
+                    logo: theme.logo,
+                    font: theme.font
                 }
             );
         } catch (e) {
@@ -167,7 +189,7 @@ structurizr.ui.ElementStyle = function(width, height, background, color, fontSiz
 
 };
 
-structurizr.ui.RelationshipStyle = function(thickness, color, dashed, routing, jump, fontSize, width, position, opacity, metadata, description) {
+structurizr.ui.RelationshipStyle = function(thickness, color, dashed, routing, jump, fontSize, width, position, opacity) {
     this.thickness = thickness;
     this.color = color;
     this.dashed = dashed;
@@ -177,8 +199,6 @@ structurizr.ui.RelationshipStyle = function(thickness, color, dashed, routing, j
     this.width = width;
     this.position = position;
     this.opacity = opacity;
-    this.metadata = metadata;
-    this.description = description;
 
     this.tag = "Relationship";
 
@@ -408,7 +428,7 @@ structurizr.ui.findRelationshipStyle = function(relationship, darkMode) {
     }
 
     const defaults = darkMode ? structurizr.ui.DARK_MODE_DEFAULTS : structurizr.ui.LIGHT_MODE_DEFAULTS;
-    const defaultRelationshipStyle = new structurizr.ui.RelationshipStyle(2, defaults.color, true, 'Direct', undefined, 24, 200, 50, 100, true, true);
+    const defaultRelationshipStyle = new structurizr.ui.RelationshipStyle(2, defaults.color, true, 'Direct', undefined, 24, 200, 50, 100);
 
     var defaultStyle = defaultRelationshipStyle;
 
@@ -455,9 +475,7 @@ structurizr.ui.findRelationshipStyle = function(relationship, darkMode) {
         defaultStyle.fontSize,
         defaultStyle.width,
         defaultStyle.position,
-        defaultStyle.opacity,
-        defaultStyle.metadata,
-        defaultStyle.description);
+        defaultStyle.opacity);
     style.tags = [ "Relationship" ];
 
     const tags = structurizr.workspace.getAllTagsForRelationship(relationship);
@@ -474,8 +492,6 @@ structurizr.ui.findRelationshipStyle = function(relationship, darkMode) {
             style.copyStyleAttributeIfSpecified(relationshipStyle, 'width');
             style.copyStyleAttributeIfSpecified(relationshipStyle, 'position');
             style.copyStyleAttributeIfSpecified(relationshipStyle, 'opacity');
-            style.copyStyleAttributeIfSpecified(relationshipStyle, 'metadata');
-            style.copyStyleAttributeIfSpecified(relationshipStyle, 'description');
 
             if (style.tags.indexOf(tags[i].trim()) === -1) {
                 style.tags.push(tags[i].trim());
@@ -682,24 +698,9 @@ structurizr.ui.changeRenderingMode = function() {
     try {
         if (structurizr.ui.isDarkMode()) {
             document.head.appendChild(darkModeStylesheetLink);
-            document.documentElement.setAttribute('data-bs-theme', 'dark');
         } else {
             document.head.removeChild(darkModeStylesheetLink);
-            document.documentElement.setAttribute('data-bs-theme', 'light');
         }
-
-        const embeddedDiagrams = $('iframe.structurizrEmbed');
-        embeddedDiagrams.each(function (index) {
-            var iframe = embeddedDiagrams[index];
-            if (iframe.contentWindow.structurizr) {
-                if (iframe.contentWindow.structurizr.ui) {
-                    iframe.contentWindow.structurizr.ui.changeRenderingMode();
-                }
-                if (iframe.contentWindow.structurizr.diagram) {
-                    iframe.contentWindow.structurizr.diagram.setDarkMode(structurizr.ui.isDarkMode());
-                }
-            }
-        });
     } catch (e) {
         // ignore
     }
