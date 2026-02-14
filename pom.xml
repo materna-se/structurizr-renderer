@@ -40,7 +40,7 @@
         <version.lombok>1.18.42</version.lombok>
         <version.picocli>4.7.7</version.picocli>
         <version.plantuml>1.2026.1</version.plantuml>
-        <version.playwright>1.57.0</version.playwright>
+        <version.playwright>1.58.0</version.playwright>
         <version.slf4j>2.0.17</version.slf4j>
         <version.structurizr>5.0.3</version.structurizr>
     </properties>
