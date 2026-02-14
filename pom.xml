@@ -154,7 +154,7 @@
             <dependency>
                 <groupId>org.eclipse.elk</groupId>
                 <artifactId>org.eclipse.elk.graph</artifactId>
-                <version>0.10.0</version>
+                <version>0.11.0</version>
                 <scope>compile</scope>
                 <exclusions>
                     <exclusion>
