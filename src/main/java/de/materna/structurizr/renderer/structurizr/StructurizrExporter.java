@@ -20,15 +20,10 @@ import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
-import java.io.UncheckedIOException;
+import java.io.InputStream;
 import java.net.URI;
-import java.net.URL;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardCopyOption;
 import java.util.AbstractMap;
 import java.util.Arrays;
 import java.util.Collections;
@@ -48,6 +43,7 @@ import java.util.regex.Pattern;
 @Slf4j
 public class StructurizrExporter extends AbstractDiagramExporter {
 
+    private static final String RESOURCE_ROOT = "structurizr";
     private static final String ENV_WS_ENDPOINT = "PLAYWRIGHT_WS_ENDPOINT";
     private static final String WORKDIR_ORIGIN = "http://workdir.local";
 
@@ -73,8 +69,6 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         String wsContent;
 
         try {
-            Path workdir = extractHtmlExporterResources(outputDir);
-
             if (workspaceJsonPath == null) {
                 wsContent = WorkspaceUtils.toJson(workspace, true);
             } else {
@@ -89,7 +83,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
             try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(config))) {
                 try (Browser b = obtainBrowser(pw)) {
-                    Page page = loadPage(b, wsContent, workdir);
+                    Page page = loadPage(b, wsContent);
 
                     Map<String, String> views = (Map<String, String>) page.evaluate("() => resolveViews()");
                     log.info("Rendering views: {}", views.keySet());
@@ -117,22 +111,22 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         }
     }
 
-    private Page loadPage(Browser browser, String wsContent, Path workdir) {
+    private Page loadPage(Browser browser, String wsContent) {
         BrowserContext ctx = browser.newContext(new Browser.NewContextOptions().setViewportSize(1920, 1080));
         Page page = ctx.newPage();
 
-        page.onConsoleMessage(msg -> log.debug(String.format("[console.%s] %s%n", msg.type(), msg.text())));
+        page.onConsoleMessage(msg -> log.debug("[console.{}] {}", msg.type(), msg.text()));
 
-        page.onPageError(err -> log.warn("[pageerror] " + err));
+        page.onPageError(err -> log.warn("[pageerror] {}", err));
 
-        mountWorkdirViaRoute(ctx, workdir, wsContent);
+        mountWorkdirViaRoute(ctx, wsContent);
 
         page.navigate(WORKDIR_ORIGIN + "/export.html");
 
         return page;
     }
 
-    private void mountWorkdirViaRoute(BrowserContext ctx, Path workdir, String wsContent) {
+    private void mountWorkdirViaRoute(BrowserContext ctx, String wsContent) {
         ctx.route("**/*", route -> {
             String url = route.request().url();
 
@@ -148,32 +142,49 @@ public class StructurizrExporter extends AbstractDiagramExporter {
             }
 
             try {
-                URI uri = URI.create(url);
-                String pathPart = uri.getPath().substring(1);
-                Path requested = workdir.resolve(pathPart);
+                String path = URI.create(url).getPath();       // e.g. /diagram-basic.html
+                if (path.startsWith("/")) path = path.substring(1);
 
-                if (!requested.startsWith(workdir)) {
-                    route.fulfill(new Route.FulfillOptions().setStatus(403));
-                    return;
-                }
-                if (!Files.exists(requested) || Files.isDirectory(requested)) {
+                String classpathPath = RESOURCE_ROOT + "/" + path;
+
+                byte[] body = loadFromClasspath(classpathPath);
+                if (body == null) {
                     route.fulfill(new Route.FulfillOptions().setStatus(404));
                     return;
                 }
 
-                byte[] bytes = Files.readAllBytes(requested);
-                String contentType = Files.probeContentType(requested);
+                String contentType = probeContentTypeByName(path);
 
                 route.fulfill(new Route.FulfillOptions()
                         .setStatus(200)
                         .setContentType(contentType)
-                        .setBodyBytes(bytes)
+                        .setBodyBytes(body)
                         .setHeaders(Map.of("Cache-Control", "no-cache")));
 
             } catch (Exception e) {
+                log.warn("Unable to serve {}", url, e);
                 route.fulfill(new Route.FulfillOptions().setStatus(500));
             }
         });
+    }
+
+    private byte[] loadFromClasspath(String resourcePath) throws IOException {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) return null;
+            return is.readAllBytes();
+        }
+    }
+
+    private String probeContentTypeByName(String name) {
+        if (name.endsWith(".html")) {
+            return "text/html; charset=utf-8";
+        } else if (name.endsWith(".js")) {
+            return "application/javascript; charset=utf-8";
+        } else if (name.endsWith(".css")) {
+            return "text/css; charset=utf-8";
+        } else {
+            return "";
+        }
     }
 
     private void exportView(Page page, Path outputFile, Path outputHashFile, String hash, String key) throws IOException {
@@ -195,52 +206,6 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
             this.cache.put(key, new AbstractMap.SimpleEntry<>(hash, svg));
             log.info("Exported: {}", outputFile.toAbsolutePath());
-        }
-    }
-
-    private Path extractHtmlExporterResources(File outputDir) throws IOException {
-        final String resourceDir = "structurizr";
-        final Path targetDir = Paths.get(outputDir.getPath(), "workdir");
-
-        ClassLoader cl = getClass().getClassLoader();
-        URL url = cl.getResource(resourceDir);
-        if (url != null) {
-            try {
-                URI uri = url.toURI();
-                Files.createDirectories(targetDir);
-
-                try (FileSystem fs = FileSystems.newFileSystem(uri, Map.of())) {
-                    Path jarPath = fs.getPath("/" + resourceDir);
-                    copyRecursively(jarPath, targetDir);
-                }
-            } catch (Exception e) {
-                throw new IOException("Invalid resource URI for " + resourceDir, e);
-            }
-        } else {
-            throw new IOException("Resource directory not found on classpath: " + resourceDir);
-        }
-
-        return targetDir;
-    }
-
-    private void copyRecursively(Path src, Path dest) throws IOException {
-        try (var stream = Files.walk(src)) {
-            stream.forEach(p -> {
-                try {
-                    Path rel = src.relativize(p);
-                    Path out = dest.resolve(rel.toString());
-                    if (Files.isDirectory(p)) {
-                        Files.createDirectories(out);
-                    } else {
-                        Files.createDirectories(out.getParent());
-                        Files.copy(p, out, StandardCopyOption.REPLACE_EXISTING);
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-        } catch (UncheckedIOException e) {
-            throw e.getCause();
         }
     }
 
