@@ -15,6 +15,12 @@ NOTE:: If Mermaid is used, a Mermaid installation is required and `mmdc` needs t
 
 NOTE:: If Structurizr is used, Playwright is used under the hood and will download Chromium. If you are behind a proxy, you need to configure the `HTTPS_PROXY` env variable.
 
+== Playwright Configuration
+
+If Structurizr is used as the rendering algorithm, Playwright is used under the hood. This is, because the rendering is taking place using JavaScript inside the browser and Playwright orchestrates the browser interaction, loading of the workspace and download of the SVG files.
+
+The configuration of the browser to be used is based on the Playwright configuration itself, meaning that all existing environment variables of Playwright can be used. Additionally, the `PLAYWRIGHT_WS_ENDPOINT` env variable configures a running Playwright server to connect to, e.g. `ws://localhost:3000`
+
 == Usage as a Java library
 
 To run the renderer from Java, you can use the `WorkspaceRenderer#render` convenience method which will set up everything as required by the provided configuration.
@@ -29,7 +35,7 @@ Following is the configuration as requested. This output is provided by PicoCLI 
 ----
 Missing required options: '--workspace=<workspaceDslPath>', '--outputDir=<outputDir>', '--viewKey=<viewKey>'
 Usage: render [-e=<plantumlLayoutEngine>] [-j=<workspaceJsonPath>]
-              -o=<outputDir> [-r=<renderer>] -v=<viewKey> -w=<workspaceDslPath>
+              -o=<outputDir> [-p=<playwrightWsEndpoint>] [-r=<renderer>] -v=<viewKey> -w=<workspaceDslPath>
 Renders the views of a given workspace to SVG files
   -e, --plantumlLayoutEngine=<plantumlLayoutEngine>
                             The layout engine to use for the PLANTUML-C4
@@ -38,6 +44,9 @@ Renders the views of a given workspace to SVG files
                             Path to the manual layout JSON file.
   -o, --outputDir=<outputDir>
                             Path to write the output to.
+  -p, --playwrightWsEndpoint
+                            The Playwright URI to connect to if a running
+                              installation should be used.
   -r, --renderer=<renderer> The renderer to use. Defaults to STRUCTURIZR.
   -v, --viewKey=<viewKey>   The key of the view to render.
   -w, --workspace=<workspaceDslPath>

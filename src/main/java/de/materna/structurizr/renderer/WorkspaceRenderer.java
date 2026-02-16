@@ -27,7 +27,8 @@ public class WorkspaceRenderer {
                                     @NonNull Path outputDir,
                                     @Nullable String viewKey,
                                     @Nullable Renderer renderer,
-                                    @Nullable PlantumlLayoutEngine plantumlLayoutEngine) throws StructurizrRenderingException {
+                                    @Nullable PlantumlLayoutEngine plantumlLayoutEngine,
+                                    @Nullable String playwrightWsEndpoint) throws StructurizrRenderingException {
         if (renderer == null) {
             log.info("No renderer for view {} provided. Using Structurizr.", viewKey);
             renderer = Renderer.STRUCTURIZR;
@@ -37,7 +38,8 @@ public class WorkspaceRenderer {
         }
         AbstractDiagramExporter diagramExporter = resolveDiagramExporter(
                 renderer,
-                plantumlLayoutEngine != null ? plantumlLayoutEngine : PlantumlLayoutEngine.GRAPHVIZ
+                plantumlLayoutEngine != null ? plantumlLayoutEngine : PlantumlLayoutEngine.GRAPHVIZ,
+                playwrightWsEndpoint
         );
 
         log.debug("Rendering view with key {} using engine {}", viewKey, renderer);
@@ -45,13 +47,13 @@ public class WorkspaceRenderer {
         return diagramExporter.export(workspaceDslPath, workspaceJsonPath, outputDir.toFile(), viewKey);
     }
 
-    private AbstractDiagramExporter resolveDiagramExporter(@NonNull Renderer renderer, @NonNull PlantumlLayoutEngine plantumlLayoutEngine) throws StructurizrRenderingException {
+    private AbstractDiagramExporter resolveDiagramExporter(@NonNull Renderer renderer, @NonNull PlantumlLayoutEngine plantumlLayoutEngine, @Nullable String playwrightWsEndpoint) throws StructurizrRenderingException {
         return switch (renderer) {
             case PLANTUML_C4 -> new PlantUMLExporter(plantumlLayoutEngine);
             case MERMAID -> new MermaidExporter();
             case STRUCTURIZR -> {
                 if (this.structurizrExporter == null) {
-                    this.structurizrExporter = new StructurizrExporter(true);
+                    this.structurizrExporter = new StructurizrExporter(playwrightWsEndpoint);
                 }
                 yield this.structurizrExporter;
             }

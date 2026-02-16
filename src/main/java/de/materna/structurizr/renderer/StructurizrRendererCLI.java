@@ -36,6 +36,9 @@ public class StructurizrRendererCLI implements Runnable {
     @CommandLine.Option(names = {"-e", "--plantumlLayoutEngine"}, description = "The layout engine to use for the PLANTUML-C4 renderer. Defaults to GraphViz.")
     private PlantumlLayoutEngine plantumlLayoutEngine;
 
+    @CommandLine.Option(names = {"-p", "--playwrightWsEndpoint"}, description = "The Playwright URI to connect to if a running installation should be used.")
+    private String playwrightWsEndpoint;
+
     public static void main(String[] args) {
         CommandLine.run(new StructurizrRendererCLI(), args);
     }
@@ -43,7 +46,7 @@ public class StructurizrRendererCLI implements Runnable {
     @SneakyThrows
     @Override
     public void run() {
-        this.workspaceRenderer.render(this.workspaceDslPath, this.workspaceJsonPath, this.outputDir, this.viewKey, this.renderer, this.plantumlLayoutEngine);
+        this.workspaceRenderer.render(this.workspaceDslPath, this.workspaceJsonPath, this.outputDir, this.viewKey, this.renderer, this.plantumlLayoutEngine, this.playwrightWsEndpoint);
     }
 
 }

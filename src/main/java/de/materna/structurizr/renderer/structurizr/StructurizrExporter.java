@@ -14,7 +14,9 @@ import com.structurizr.util.WorkspaceUtils;
 import de.materna.structurizr.renderer.AbstractDiagramExporter;
 import de.materna.structurizr.renderer.HashingUtil;
 import de.materna.structurizr.renderer.StructurizrRenderingException;
+import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.File;
 import java.io.IOException;
@@ -46,8 +48,18 @@ import java.util.regex.Pattern;
 @Slf4j
 public class StructurizrExporter extends AbstractDiagramExporter {
 
-    public StructurizrExporter(boolean installBrowser) throws StructurizrRenderingException {
-        if (installBrowser) {
+    private static final String ENV_WS_ENDPOINT = "PLAYWRIGHT_WS_ENDPOINT";
+    private static final String WORKDIR_ORIGIN = "http://workdir.local";
+
+    @Getter
+    private final String rendererString = "Structurizr";
+
+    private final String playwrightWsEndpoint;
+
+    public StructurizrExporter(String playwrightWsEndpoint) throws StructurizrRenderingException {
+        this.playwrightWsEndpoint = resolveRemoteUrl(playwrightWsEndpoint);
+        if (this.playwrightWsEndpoint == null) {
+            // Manually download browser (chrome only) once to avoid file-system checks in further runs
             try {
                 installBrowser(new String[]{"install", "chromium", "--with-deps", "--only-shell"});
             } catch (IOException | InterruptedException e) {
@@ -61,8 +73,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         String wsContent;
 
         try {
-            Path resource = extractHtmlExporterResources(outputDir);
-            Path html = Paths.get(resource.toString(), "diagram-basic.html").toAbsolutePath();
+            Path workdir = extractHtmlExporterResources(outputDir);
 
             if (workspaceJsonPath == null) {
                 wsContent = WorkspaceUtils.toJson(workspace, true);
@@ -71,36 +82,32 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                 wsContent = Files.readString(workspaceJsonPath);
             }
 
-            String url = "file://" + html.toString().replace('\\', '/');
-            log.debug("Opening: " + url);
-
+            // force skip of browser install as installation was done manually in constructor
+            // otherwise, all browser instances will be downloaded
             Map<String, String> config = new HashMap<>();
             config.put("PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD", "1");
+
             try (Playwright pw = Playwright.create(new Playwright.CreateOptions().setEnv(config))) {
-                BrowserType.LaunchOptions opts = new BrowserType.LaunchOptions().setHeadless(true);
-                try (Browser b = pw.chromium().launch(opts)) {
-                    Page page = loadPage(b, wsContent, url);
+                try (Browser b = obtainBrowser(pw)) {
+                    Page page = loadPage(b, wsContent, workdir);
 
                     Map<String, String> views = (Map<String, String>) page.evaluate("() => resolveViews()");
                     log.info("Rendering views: {}", views.keySet());
-                    // Rendering a diagram this way is expensive as of the browser overhead. Therefore, render all diagrams.
-                    Map<String, Path> result = new HashMap<>();
-                    if (views == null || views.isEmpty()) {
+                    if (views.isEmpty()) {
                         throw new StructurizrRenderingException("No views defined in workspace-file. Nothing generated.");
                     } else if (!views.containsKey(viewKey)) {
                         throw new StructurizrRenderingException("No view with key " + viewKey + " in provided workspace-file. Nothing generated.");
-                    } else {
-                        String hash;
-                        Path outputFile;
-                        Path outputHashFile;
-                        for (Map.Entry<String, String> entry : views.entrySet()) {
-                            hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, entry.getKey(), getRendererString());
-                            outputFile = constructOutputFilePath(outputDir, entry.getKey());
-                            outputHashFile = constructOutputHashFilePath(outputFile, hash);
+                    }
 
-                            exportView(page, outputFile, outputHashFile, hash, entry.getKey());
-                            result.put(entry.getKey(), outputFile);
-                        }
+                    // Rendering a diagram this way is expensive as of the browser overhead. Therefore, render all diagrams and rely on caching in later runs.
+                    Map<String, Path> result = new HashMap<>();
+                    for (Map.Entry<String, String> entry : views.entrySet()) {
+                        String hash = HashingUtil.buildHash(workspacePath, workspaceJsonPath, entry.getKey(), getRendererString());
+                        Path outputFile = constructOutputFilePath(outputDir, entry.getKey());
+                        Path outputHashFile = constructOutputHashFilePath(outputFile, hash);
+
+                        exportView(page, outputFile, outputHashFile, hash, entry.getKey());
+                        result.put(entry.getKey(), outputFile);
                     }
                     return result.get(viewKey);
                 }
@@ -110,12 +117,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         }
     }
 
-    @Override
-    protected String getRendererString() {
-        return "Structurizr";
-    }
-
-    private Page loadPage(Browser browser, String wsContent, String url) {
+    private Page loadPage(Browser browser, String wsContent, Path workdir) {
         BrowserContext ctx = browser.newContext(new Browser.NewContextOptions().setViewportSize(1920, 1080));
         Page page = ctx.newPage();
 
@@ -123,17 +125,55 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
         page.onPageError(err -> log.warn("[pageerror] " + err));
 
-        final String BIG_BANK_URL =
-                "https://raw.githubusercontent.com/structurizr/ui/main/examples/big-bank-plc.json";
-        ctx.route(BIG_BANK_URL, route -> {
-            route.fulfill(new Route.FulfillOptions()
-                    .setStatus(200)
-                    .setContentType("application/json")
-                    .setBody(wsContent));
-        });
+        mountWorkdirViaRoute(ctx, workdir, wsContent);
 
-        page.navigate(url);
+        page.navigate(WORKDIR_ORIGIN + "/export.html");
+
         return page;
+    }
+
+    private void mountWorkdirViaRoute(BrowserContext ctx, Path workdir, String wsContent) {
+        ctx.route("**/*", route -> {
+            String url = route.request().url();
+
+            if (!url.startsWith(WORKDIR_ORIGIN + "/")) {
+                route.resume();
+                return;
+            } else if (url.endsWith("workspace.json")) {
+                route.fulfill(new Route.FulfillOptions()
+                        .setStatus(200)
+                        .setContentType("application/json")
+                        .setBody(wsContent));
+                return;
+            }
+
+            try {
+                URI uri = URI.create(url);
+                String pathPart = uri.getPath().substring(1);
+                Path requested = workdir.resolve(pathPart);
+
+                if (!requested.startsWith(workdir)) {
+                    route.fulfill(new Route.FulfillOptions().setStatus(403));
+                    return;
+                }
+                if (!Files.exists(requested) || Files.isDirectory(requested)) {
+                    route.fulfill(new Route.FulfillOptions().setStatus(404));
+                    return;
+                }
+
+                byte[] bytes = Files.readAllBytes(requested);
+                String contentType = Files.probeContentType(requested);
+
+                route.fulfill(new Route.FulfillOptions()
+                        .setStatus(200)
+                        .setContentType(contentType)
+                        .setBodyBytes(bytes)
+                        .setHeaders(Map.of("Cache-Control", "no-cache")));
+
+            } catch (Exception e) {
+                route.fulfill(new Route.FulfillOptions().setStatus(500));
+            }
+        });
     }
 
     private void exportView(Page page, Path outputFile, Path outputHashFile, String hash, String key) throws IOException {
@@ -204,6 +244,27 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         }
     }
 
+    private String resolveRemoteUrl(String playwrightWsEndpoint) {
+        if (StringUtils.isNotBlank(playwrightWsEndpoint)) {
+            return playwrightWsEndpoint;
+        } else if (StringUtils.isNotBlank(System.getenv(ENV_WS_ENDPOINT))) {
+            return System.getenv(ENV_WS_ENDPOINT);
+        }
+        return null;
+    }
+
+    private Browser obtainBrowser(Playwright pw) {
+        if (StringUtils.isNotBlank(this.playwrightWsEndpoint)) {
+            log.info("Connecting to Playwright Browser");
+            return pw.chromium().connect(this.playwrightWsEndpoint, new BrowserType.ConnectOptions().setTimeout(30000));
+        } else {
+            log.info("Launching local Chromium");
+            BrowserType.LaunchOptions opts = new BrowserType.LaunchOptions().setHeadless(true);
+            return pw.chromium().launch(opts);
+        }
+
+    }
+
     private int installBrowser(String[] args) throws IOException, InterruptedException {
         log.info("Installing Chromium via Playwright");
         // mimic behaviour from com.microsoft.playwright.CLI#main
@@ -246,7 +307,5 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
         return svg;
     }
-
-
 
 }
