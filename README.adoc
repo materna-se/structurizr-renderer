@@ -1,31 +1,10 @@
 = structurizr-renderer
 
-The `structurizr-renderer` is a Java library and CLI tool to render Structurizr workspaces providing different rendering algorithms, i.e.: 
+The `structurizr-renderer` is a Java library and CLI tool to render Structurizr workspaces providing different rendering algorithms.
 
-* C4-PlantUML with support for
-  * GraphViz (default for C4-PlantUML)
-  * ELK
-  * Smetana
-* Mermaid
-* Structurizr (as used by the Structurizr UI) (default)
+== Usage
 
-NOTE:: If GraphViz is used, a GraphViz installation is required and `dot` needs to be on the path.
-
-NOTE:: If Mermaid is used, a Mermaid installation is required and `mmdc` needs to be on the path.
-
-NOTE:: If Structurizr is used, Playwright is used under the hood and will download Chromium. If you are behind a proxy, you need to configure the `HTTPS_PROXY` env variable.
-
-== Playwright Configuration
-
-If Structurizr is used as the rendering algorithm, Playwright is used under the hood. This is, because the rendering is taking place using JavaScript inside the browser and Playwright orchestrates the browser interaction, loading of the workspace and download of the SVG files.
-
-The configuration of the browser to be used is based on the Playwright configuration itself, meaning that all existing environment variables of Playwright can be used. Additionally, the `PLAYWRIGHT_WS_ENDPOINT` env variable configures a running Playwright server to connect to, e.g. `ws://localhost:3000`
-
-== Usage as a Java library
-
-To run the renderer from Java, you can use the `WorkspaceRenderer#render` convenience method which will set up everything as required by the provided configuration.
-
-== Usage from the command line
+=== Usage from the command line
 
 You can download the latest release from GitHub. Once downloaded, run it using `java -jar`. This requires at least JDK 17.
 
@@ -53,4 +32,46 @@ Renders the views of a given workspace to SVG files
                             Path to the workspace DSL file.
 ----
 
+=== Usage as a Java library
 
+To run the renderer from Java, you can use the `WorkspaceRenderer#render` convenience method which will set up everything as required based on the provided configuration.
+
+== Rendering Algorithms
+
+Following are the supported values for the `--renderer` parameter:
+
+* MERMAID
+* PLANTUML-C4
+* STRUCTURIZR (Default)
+
+=== Mermaid
+
+Structurizr workspaces can be rendered using https://github.com/mermaid-js/mermaid[Mermaid]. For that, the workspace is converted to `.mmd`files and then rendered by mermaid-js. Please refer to the https://docs.structurizr.com/export/mermaid[Structurizr Documentation] to learn what parts of a workspace are supported. Per defined view in the DSL, a diagram will be generated.
+
+NOTE:: Additionally to the rendered SVG, the `.mmd` file is exported to the same path for further processing.
+
+NOTE:: If Mermaid is used, a Mermaid installation is required and `mmdc` needs to be on the path.
+
+=== PlantUML-C4
+
+Structurizr workspaces can be rendered using https://github.com/plantuml-stdlib/C4-PlantUML[C4-PlantUML]. For that, the workspace is converted to C4-PlantUML and afterwards rendered using the PlantUML library. Please refer to the https://docs.structurizr.com/export/c4plantuml[Structurizr Documentation] to learn what parts of a workspace are supported. Per defined view in the DSL file, a diagram will be generated.
+
+NOTE:: Additionally to the rendered SVG, the `.puml` file is exported to the same path for further processing.
+
+Additionally, there is support to configure which layout engine should be used. This can be chosen by specifying `plantumlLayoutEngine` to one of the following values:
+
+* ELK
+* GRAPHVIZ (Default)
+* SMETANA
+
+NOTE:: If GraphViz is used, a GraphViz installation is required and `dot` needs to be on the path.
+
+=== Structurizr
+
+This renderer refers to the rendering that is used natively inside the UI application Structurizr Lite und Structurizr Playground. To make this work, Playwright is used under the hood with a minimal JavaScript setup of the browser-based rendering. With that, the diagrams will look like designed including support for manual layout.
+
+By default, Playwright will look for an existing Chromium installation in the https://playwright.dev/docs/browsers#managing-browser-binaries[documented locations]. If none is found, Chromium will be downloaded.
+
+NOTE:: If this is run behind a proxy, the `HTTPS_PROXY` env variable needs to be configured.
+
+By specifying the `--playwrightWsEndpoint` parameter, the default behavior can be omitted and a connection is created to a running Chromium instance. For example, if Chromium was started using `docker run -p 3000:3000 ghcr.io/browserless/chromium`, the value would be `ws://localhost:3000/playwright/chromium
