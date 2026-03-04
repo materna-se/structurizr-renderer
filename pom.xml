@@ -27,7 +27,7 @@
     <scm>
         <url>https://github.com/materna-se/structurizr-renderer</url>
         <connection>scm:git:https://github.com/materna-se/structurizr-renderer.git</connection>
-        <developerConnection>scm:git:ssh://git@github.com/materna-se/structurizr-renderer.git</developerConnection>
+        <developerConnection>scm:git:https://github.com/materna-se/structurizr-renderer.git</developerConnection>
         <tag>HEAD</tag>
     </scm>
 
