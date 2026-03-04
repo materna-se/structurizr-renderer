@@ -1,0 +1,72 @@
+name: Manual Maven Release (pre-releases & finals)
+
+on:
+  workflow_dispatch:
+    inputs:
+      releaseVersion:
+        description: 'Release Version'
+        required: true
+      nextVersion:
+        description: 'Next Dev-Version'
+        required: true
+
+permissions:
+  contents: write
+  packages: read
+  pull-requests: read
+
+jobs:
+  release:
+    name: Build, Tag & Publish Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          persist-credentials: true
+          fetch-depth: 0
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: 'maven'
+          gpg-private-key: ${{ secrets.OSSRH_GPG_PRIVATE_KEY }}
+          gpg-passphrase: ${{ secrets.OSSRH_PASSPHRASE }}
+      - name: Setup Maven
+        uses: s4u/maven-settings-action@v4.0.0
+        with:
+          servers: |
+            [{
+              "id": "ossrh",
+              "username": "${{ secrets.OSSRH_USERNAME }}",
+              "password": "${{ secrets.OSSRH_PASSWORD }}"
+            }]
+
+      - name: Configure Git user
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Maven release:prepare
+        run: |
+          mvn -B -DskipTests=false \
+             -DreleaseVersion="${{ github.event.inputs.releaseVersion }}" \
+             -DdevelopmentVersion="${{ github.event.inputs.nextVersion }}" \
+             -DscmCommentPrefix="[release] " \
+             -DtagNameFormat="v@{project.version}" \
+             -Darguments="-Ppublish -DskipTests=false -Dgpg.passphrase=${{ secrets.OSSRH_PASSPHRASE }}" \
+             release:prepare
+        env:
+          OSSRH_PASSPHRASE: ${{ secrets.OSSRH_PASSPHRASE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Maven release:perform
+        run: |
+          mvn -B \
+             -Darguments="-Ppublish -DskipTests -Dgpg.passphrase=${{ secrets.OSSRH_PASSPHRASE }}" \
+             release:perform
+        env:
+          OSSRH_PASSPHRASE: ${{ secrets.OSSRH_PASSPHRASE }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

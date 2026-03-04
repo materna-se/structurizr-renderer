@@ -27,6 +27,8 @@
     <scm>
         <url>https://github.com/materna-se/structurizr-renderer</url>
         <connection>scm:git:https://github.com/materna-se/structurizr-renderer.git</connection>
+        <developerConnection>scm:git:ssh://git@github.com/materna-se/structurizr-renderer.git</developerConnection>
+        <tag>HEAD</tag>
     </scm>
 
     <properties>
@@ -215,6 +217,33 @@
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-source-plugin</artifactId>
+                        <version>3.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-sources</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-javadoc-plugin</artifactId>
+                        <version>3.12.0</version>
+                        <executions>
+                            <execution>
+                                <id>attach-javadocs</id>
+                                <goals>
+                                    <goal>jar</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-gpg-plugin</artifactId>
                         <version>3.2.8</version>
                         <executions>
@@ -243,6 +272,15 @@
                         <configuration>
                             <publishingServerId>ossrh</publishingServerId>
                         </configuration>
+                        <executions>
+                            <execution>
+                                <id>publish</id>
+                                <phase>deploy</phase>
+                                <goals>
+                                    <goal>publish</goal>
+                                </goals>
+                            </execution>
+                        </executions>
                     </plugin>
                 </plugins>
             </build>
