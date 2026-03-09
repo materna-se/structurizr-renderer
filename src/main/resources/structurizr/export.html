@@ -33,16 +33,15 @@
 <script>
     var diagram;
     var views;
+    window.structurizrLoaded = false;
 
     $.ajax({
         url: 'workspace.json',
         dataType: 'json',
         success: function(data){
             structurizr.workspace = new structurizr.Workspace(data);
-
-            diagram = new structurizr.ui.Diagram('diagram', false, function() {
-                diagram.changeView('Containers');
-            });
+            diagram = new structurizr.ui.Diagram('diagram', false, function() {});
+            window.structurizrLoaded = true;
         }
     });
 

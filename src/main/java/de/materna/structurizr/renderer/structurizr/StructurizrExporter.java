@@ -123,6 +123,8 @@ public class StructurizrExporter extends AbstractDiagramExporter {
 
         page.navigate(WORKDIR_ORIGIN + "/export.html");
 
+        page.waitForFunction("() => window.structurizrLoaded === true");
+
         return page;
     }
 
