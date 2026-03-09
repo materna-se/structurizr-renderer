@@ -4,7 +4,7 @@
 
     <groupId>de.materna.structurizr</groupId>
     <artifactId>structurizr-renderer</artifactId>
-    <version>1.0.0-SNAPSHOT</version>
+    <version>1.0.0-M2</version>
 
     <name>Structurizr Renderer</name>
     <description>Java library and CLI tool to render Structurizr workspaces providing different rendering algorithms.</description>
@@ -30,7 +30,7 @@
         <url>https://github.com/materna-se/structurizr-renderer</url>
         <connection>scm:git:https://github.com/materna-se/structurizr-renderer.git</connection>
         <developerConnection>scm:git:https://github.com/materna-se/structurizr-renderer.git</developerConnection>
-        <tag>HEAD</tag>
+        <tag>v1.0.0-M2</tag>
     </scm>
 
     <properties>
