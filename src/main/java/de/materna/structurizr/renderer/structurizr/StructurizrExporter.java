@@ -100,7 +100,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
                         Path outputFile = constructOutputFilePath(outputDir, entry.getKey());
                         Path outputHashFile = constructOutputHashFilePath(outputFile, hash);
 
-                        exportView(page, outputFile, outputHashFile, hash, entry.getKey());
+                        exportView(page, outputFile, outputHashFile, hash, entry.getKey(), viewKey.equals(entry.getKey()));
                         result.put(entry.getKey(), outputFile);
                     }
                     return result.get(viewKey);
@@ -189,7 +189,7 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         }
     }
 
-    private void exportView(Page page, Path outputFile, Path outputHashFile, String hash, String key) throws IOException {
+    private void exportView(Page page, Path outputFile, Path outputHashFile, String hash, String key, boolean shouldPersist) throws IOException {
         page.evaluate("(k) => changeView(k)", key);
 
         // wait for rendered diagram
@@ -204,10 +204,15 @@ public class StructurizrExporter extends AbstractDiagramExporter {
         } else {
             svg = normalizeSvgSize(svg);
 
-            writeFile(svg, outputFile, outputHashFile);
-
+            // only write file if it is the originally requested one. This is because IDEA and
+            // the confluence-publisher plugin have target directory per adoc document. Storing all views would lead
+            // to flooding the folder with diagrams not part of the adoc document. Performance is still guaranteed by
+            // using the in-memory cache.
+            if (shouldPersist) {
+                writeFile(svg, outputFile, outputHashFile);
+                log.info("Exported: {}", outputFile.toAbsolutePath());
+            }
             this.cache.put(key, new AbstractMap.SimpleEntry<>(hash, svg));
-            log.info("Exported: {}", outputFile.toAbsolutePath());
         }
     }
 

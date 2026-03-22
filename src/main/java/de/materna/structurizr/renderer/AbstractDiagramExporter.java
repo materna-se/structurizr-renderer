@@ -92,22 +92,23 @@ public abstract class AbstractDiagramExporter {
 
     private AbstractMap.SimpleEntry<String, Path> getFromCache(Path outputFile, Path outputHashFile, String viewKey, String hash) throws StructurizrRenderingException {
         if (StringUtils.isNotEmpty(viewKey)) {
-            if (this.cache.containsKey(viewKey)) {
+            if (outputFile.toFile().exists() && outputHashFile.toFile().exists()) {
+                // current rendered version is up-to-date
+                log.debug("View with key {} already saved. No action required.", viewKey);
+                return new AbstractMap.SimpleEntry<>(viewKey, outputFile);
+            } else if (this.cache.containsKey(viewKey)) {
                 AbstractMap.SimpleEntry<String, String> renderedView = this.cache.get(viewKey);
-                if (renderedView.getKey().equals(hash)) {
+                 if (renderedView.getKey().equals(hash)) {
                     // we need to write the value as a file
                     try {
                         writeFile(renderedView.getValue(), outputFile, outputHashFile);
                         log.debug("In-memory cache hit for view {}", viewKey);
+                        log.info("Exported: {}", outputFile.toAbsolutePath());
                         return new AbstractMap.SimpleEntry<>(viewKey, outputFile);
                     } catch (IOException e) {
                         throw new StructurizrRenderingException("Unable to write cached diagram for view: " + viewKey, e);
                     }
                 }
-            } else if (outputFile.toFile().exists() && outputHashFile.toFile().exists()) {
-                // current rendered version is up-to-date
-                log.debug("Cache hit for view {}. Already rendered.", viewKey);
-                return new AbstractMap.SimpleEntry<>(viewKey, outputFile);
             }
         }
         return null;
