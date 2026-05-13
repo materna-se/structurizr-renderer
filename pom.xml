@@ -45,7 +45,7 @@
         <version.picocli>4.7.7</version.picocli>
         <version.plantuml>1.2026.2</version.plantuml>
         <version.playwright>1.59.0</version.playwright>
-        <version.slf4j>2.0.17</version.slf4j>
+        <version.slf4j>2.0.18</version.slf4j>
         <version.structurizr>5.0.3</version.structurizr>
     </properties>
 
